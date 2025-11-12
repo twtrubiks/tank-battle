@@ -2,7 +2,7 @@
 
 > A faithful recreation of the classic FC Battle City (1985) using Phaser.js 3
 
-**[🎮 Play Online](https://xxxx.github.io/tank-battle/)** | [English](README_EN.md) | [繁體中文](README.md)
+**[🎮 Play Online](https://blue-rubiks.github.io/tank-battle/)** | [English](README_EN.md) | [繁體中文](README.md)
 
 ---
 

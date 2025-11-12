@@ -2,7 +2,7 @@
 
 > 使用 Phaser.js 3 開發的經典 FC Battle City (1985) 復刻版
 
-**[🎮 線上試玩](https://xxxx.github.io/tank-battle/)** | [English](README_EN.md) | [繁體中文](README.md)
+**[🎮 線上試玩](https://blue-rubiks.github.io/tank-battle/)** | [English](README_EN.md) | [繁體中文](README.md)
 
 ---
 

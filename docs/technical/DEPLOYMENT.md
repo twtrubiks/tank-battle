@@ -48,7 +48,7 @@ GitHub Pages 是 **完全免費** 的靜態網站託管服務，非常適合 Tan
 
 #### 步驟 2：驗證 GitHub Actions 設定
 
-專案已包含 `.github/workflows/deploy.yml` 檔案，設定如下：
+請建立 `.github/workflows/deploy.yml` 檔案，設定如下：
 
 ```yaml
 name: Deploy to GitHub Pages
@@ -59,21 +59,52 @@ on:
   workflow_dispatch:              # 允許手動觸發
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    steps:
-      - Checkout 程式碼
-      - 設置 Node.js
-      - 安裝相依套件
-      - 執行測試
-      - 建置專案
-      - 上傳建置產物
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
     steps:
-      - 部署到 GitHub Pages
+      # 1. Checkout 程式碼
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 設置 Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      # 3. 安裝相依套件
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. 執行測試
+      - name: Run tests
+        run: npm test
+
+      # 5. 建置專案
+      - name: Build project
+        run: npm run build
+
+      # 6. 設定 GitHub Pages
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      # 7. 上傳建置產物
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      # 8. 部署到 GitHub Pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 ```
 
 #### 步驟 3：推送程式碼觸發部署
