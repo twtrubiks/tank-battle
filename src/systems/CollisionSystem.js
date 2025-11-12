@@ -200,14 +200,23 @@ export default class CollisionSystem {
     // 子彈不能擊中發射者
     if (bullet.owner === tank) return false;
 
-    // 敵人的子彈不能擊中其他敵人（友軍傷害防止）
-    const isEnemyBullet = !bullet.isPlayerBullet;
+    // 判斷子彈和坦克的陣營
+    const isPlayerBullet = bullet.isPlayerBullet;
+    const isPlayerTank = tank.constructor.name === 'PlayerTank';
     const isEnemyTank = tank.constructor.name === 'EnemyTank';
-    if (isEnemyBullet && isEnemyTank) {
+
+    // 敵人的子彈不能擊中敵人坦克（防止友軍傷害）
+    if (!isPlayerBullet && isEnemyTank) {
       return false;
     }
 
-    // 玩家的子彈可以擊中敵人，敵人的子彈可以擊中玩家
+    // 玩家的子彈不能擊中玩家坦克（防止自傷）
+    if (isPlayerBullet && isPlayerTank) {
+      return false;
+    }
+
+    // 只有不同陣營才能造成傷害
+    // 玩家子彈可以擊中敵人，敵人子彈可以擊中玩家
     return true;
   }
 
