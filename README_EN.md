@@ -22,7 +22,7 @@ A complete remake of the classic NES game "Battle City" (Tank 1990) using modern
 - 🤖 **Smart AI** - 4-state machine behaviors + A* pathfinding
 - 🗺️ **Diverse Terrain** - 7 terrain types (Brick, Steel, Water, Ice, Forest, etc.)
 - 💾 **Save System** - Auto-save progress, scores, and statistics
-- ✅ **High Quality** - 153 unit tests, all passing
+- ✅ **High Quality** - 161 unit tests, all passing
 
 ## 🎮 Controls
 
@@ -37,8 +37,8 @@ A complete remake of the classic NES game "Battle City" (Tank 1990) using modern
 
 ### Prerequisites
 
-- Node.js 14.x or higher
-- npm 6.x or higher
+- Node.js 22.x or higher
+- npm 10.x or higher
 
 ### Installation
 
@@ -71,7 +71,7 @@ tank-battle/
 │   ├── systems/           # Game systems (AI, collision, etc.)
 │   ├── managers/          # Managers (audio, save)
 │   └── utils/             # Utilities (constants, state machine, A* algorithm)
-├── tests/                 # Test files (153 tests)
+├── tests/                 # Test files (161 tests)
 ├── public/                # Static assets
 │   └── data/             # Level data (5 levels)
 └── docs/                  # Technical documentation
@@ -137,8 +137,8 @@ npm test -- --coverage
 
 Test Statistics:
 - Test Suites: 9
-- Test Cases: 153
-- Test Code: ~2,200 lines
+- Test Cases: 161
+- Test Code: 2,493 lines
 - Pass Rate: 100%
 
 ## 🎨 Code Quality

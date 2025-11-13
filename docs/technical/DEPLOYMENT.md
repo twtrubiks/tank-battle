@@ -20,8 +20,8 @@
 
 - ✅ GitHub 帳號
 - ✅ Git 已安裝
-- ✅ Node.js 14+ 已安裝
-- ✅ npm 6+ 已安裝
+- ✅ Node.js 22+ 已安裝
+- ✅ npm 10+ 已安裝
 
 ### 專案需求
 
@@ -76,7 +76,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'npm'
 
       # 3. 安裝相依套件

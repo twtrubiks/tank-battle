@@ -1,6 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const TerserPlugin = require('terser-webpack-plugin');
 
 module.exports = {
   entry: './src/main.js',
@@ -54,6 +55,17 @@ module.exports = {
       ]
     })
   ],
+
+  optimization: {
+    minimizer: [
+      new TerserPlugin({
+        terserOptions: {
+          keep_classnames: true,  // 保留類名，避免 constructor.name 被壓縮
+          keep_fnames: true       // 保留函數名
+        }
+      })
+    ]
+  },
 
   devServer: {
     static: [
