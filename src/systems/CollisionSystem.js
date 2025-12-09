@@ -69,6 +69,21 @@ export default class CollisionSystem {
       this
     );
 
+    // 3.5 玩家坦克與基地（防止穿越）
+    this.scene.physics.add.collider(
+      this.playerGroup,
+      this.baseGroup
+    );
+
+    // 3.6 敵人坦克與基地（防止穿越，並觸發換向）
+    this.scene.physics.add.collider(
+      this.enemyGroup,
+      this.baseGroup,
+      this.onTankWallCollision,  // 使用與牆壁相同的處理
+      null,
+      this
+    );
+
     // 4. 敵人坦克之間
     // 注意：經典 FC 坦克大戰中，敵人坦克可以互相穿過，不會碰撞
     // 這是為了避免敵人 AI 互相阻擋，並增加遊戲難度（多敵人疊加進攻）

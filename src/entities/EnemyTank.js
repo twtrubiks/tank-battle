@@ -156,7 +156,11 @@ export default class EnemyTank extends Tank {
    * 摧毀前清理
    */
   destroy() {
+    // 清理 AI 控制器（從黑板取消註冊）
     if (this.aiController) {
+      if (this.aiController.destroy) {
+        this.aiController.destroy();
+      }
       this.aiController = null;
     }
     super.destroy();

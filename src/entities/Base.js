@@ -10,13 +10,17 @@ export default class Base extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
     super(scene, x, y, 'base');
 
-    // 不要在這裡創建物理 body，讓 staticGroup 來處理
+    // 加入場景
     scene.add.existing(this);
+    scene.physics.add.existing(this, true); // true = 靜態物體
 
     this.isDestroyed = false;
 
     // 設定深度
     this.setDepth(DEPTHS.MAP_UPPER);
+
+    // 設定碰撞體積（與顯示大小一致）
+    this.body.setSize(this.width, this.height);
   }
 
   /**

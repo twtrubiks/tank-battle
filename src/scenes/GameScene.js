@@ -17,6 +17,7 @@ import Ice from '../entities/Ice';
 import Forest from '../entities/Forest';
 import CollisionSystem from '../systems/CollisionSystem';
 import EnemyAI from '../systems/EnemyAI';
+import AIBlackboard from '../systems/AIBlackboard';
 import ObjectPool from '../utils/ObjectPool';
 import AudioManager from '../managers/AudioManager';
 import SaveManager from '../managers/SaveManager';
@@ -94,6 +95,9 @@ export default class GameScene extends Phaser.Scene {
     // 碰撞系統
     this.collisionSystem = new CollisionSystem(this);
     this.collisionSystem.init();
+
+    // AI 黑板系統（敵人團隊協作）
+    this.aiBlackboard = new AIBlackboard(this);
 
     // 子彈池
     this.bulletPool = new ObjectPool(
@@ -1192,6 +1196,11 @@ export default class GameScene extends Phaser.Scene {
   // ==========================================
 
   update(time, delta) {
+    // 更新 AI 黑板
+    if (this.aiBlackboard) {
+      this.aiBlackboard.update();
+    }
+
     // 更新玩家
     if (this.player && this.player.active) {
       this.handlePlayerInput();
@@ -1296,6 +1305,11 @@ export default class GameScene extends Phaser.Scene {
     // 清理物件池
     if (this.bulletPool) {
       this.bulletPool.clear();
+    }
+
+    // 清理 AI 黑板
+    if (this.aiBlackboard) {
+      this.aiBlackboard.clear();
     }
   }
 }

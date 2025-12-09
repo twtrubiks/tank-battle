@@ -68,19 +68,20 @@ module.exports = {
   },
 
   devServer: {
-    static: [
-      {
-        directory: path.join(__dirname, 'dist')
-      },
-      {
-        directory: path.join(__dirname, 'public'),
-        publicPath: '/'
-      }
-    ],
+    static: {
+      directory: path.join(__dirname, 'public'),
+      publicPath: '/'
+    },
     compress: true,
     port: 8080,
     hot: true,
     open: true
+  },
+
+  watchOptions: {
+    ignored: /node_modules|dist/,
+    aggregateTimeout: 300,
+    poll: 1000  // 使用轮询模式，每 1000ms 检查一次文件变化
   },
 
   resolve: {

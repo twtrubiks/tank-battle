@@ -71,8 +71,11 @@ export default class Tank extends Phaser.Physics.Arcade.Sprite {
     // 設定阻力（停止時快速減速）
     this.body.setDrag(400);
 
-    // 增加輕微彈性，避免完全卡死在牆角
-    this.body.setBounce(0.05);
+    // 防止被其他坦克推動（經典坦克大戰行為）
+    this.body.pushable = false;
+
+    // 移除彈性，避免奇怪的物理行為
+    this.body.setBounce(0);
   }
 
   /**

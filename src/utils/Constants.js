@@ -225,7 +225,34 @@ export const AI_CONFIG = {
   STUCK_THRESHOLD_SEVERE: 90,  // 嚴重卡住：1.5 秒（隨機逃脫）
 
   // 速度檢測（如果速度為 0 但應該在移動，視為卡住）
-  STUCK_VELOCITY_THRESHOLD: 5  // 速度低於此值視為停止
+  STUCK_VELOCITY_THRESHOLD: 5,  // 速度低於此值視為停止
+
+  // === 進階 AI 功能配置 ===
+
+  // 預測射擊
+  PREDICTION_TIME: 0.3,         // 預測時間（秒）
+  PREDICTION_ENABLED: true,     // 是否啟用預測射擊
+
+  // 視線檢測
+  LINE_OF_SIGHT_ENABLED: true,  // 是否啟用視線檢測
+  LOS_CHECK_INTERVAL: 200,      // 視線檢測間隔（ms）
+
+  // 智能巡邏
+  SMART_PATROL_ENABLED: true,   // 是否啟用智能巡邏
+  PATROL_POINT_REACH_DIST: 40,  // 到達巡邏點的判定距離
+
+  // 包抄戰術
+  FLANKING_ENABLED: true,       // 是否啟用包抄戰術
+  FLANKING_DISTANCE: 120,       // 包抄距離
+  MAX_FLANKING_ENEMIES: 2,      // 最大同時包抄敵人數
+
+  // 團隊協作
+  TEAM_COORDINATION_ENABLED: true,  // 是否啟用團隊協作
+  MIN_ENEMY_SPACING: 60,            // 敵人之間最小間距
+
+  // 威脅評估
+  THREAT_HIGH_THRESHOLD: 70,    // 高威脅閾值
+  THREAT_LOW_THRESHOLD: 30      // 低威脅閾值
 };
 
 // AI 難度設定

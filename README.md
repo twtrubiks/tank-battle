@@ -19,7 +19,7 @@
 - 🎯 **完整復刻** - 經典 FC 規則 100% 還原
 - ⭐ **升級系統** - 4 級星星升級，永久有效直到死亡
 - 🎁 **道具系統** - 6 種經典道具（星星、頭盔、手榴彈等）
-- 🤖 **智能 AI** - 4 種狀態機行為 + A* 尋路演算法
+- 🤖 **智能 AI** - 進階 AI 系統：預測射擊、視線檢測、包抄戰術、團隊協作
 - 🗺️ **多樣地形** - 7 種地形類型（磚牆、鋼牆、水域、冰地、森林等）
 - 💾 **存檔功能** - 自動保存進度、分數和統計數據
 - ✅ **高品質** - 161 個單元測試全部通過
@@ -117,6 +117,7 @@ tank-battle/
 - [遊戲特性說明](./docs/GAME_FEATURES.md)
 - [設計模式詳解](./docs/technical/design-patterns.md)
 - [A* 尋路演算法](./docs/technical/astar-pathfinding.md)
+- [進階 AI 系統](./docs/technical/advanced-ai.md)
 - [技術選型說明](./docs/technical/TECH_STACK.md)
 - [部署指南](./docs/technical/DEPLOYMENT.md)
 
