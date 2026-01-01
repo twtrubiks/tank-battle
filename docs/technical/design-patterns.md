@@ -827,8 +827,12 @@ export default class Bullet extends Phaser.Physics.Arcade.Sprite {
   }
 
   update() {
-    // 超出邊界時自動停用
-    if (this.x < 0 || this.x > 832 || this.y < 0 || this.y > 832) {
+    // 超出遊戲場邊界時自動停用
+    // 注意：垂直方向的可玩區範圍是 PLAY_OFFSET_Y (44) ~ PLAY_OFFSET_Y + PLAY_HEIGHT (876)，
+    // 上下兩條 HUD 是不可進入區，子彈一旦穿出可玩區就回收。
+    const top = GAME_CONFIG.PLAY_OFFSET_Y;
+    const bottom = top + GAME_CONFIG.PLAY_HEIGHT;
+    if (this.x < 0 || this.x > GAME_CONFIG.WIDTH || this.y < top || this.y > bottom) {
       this.deactivate();
     }
   }
@@ -1825,7 +1829,7 @@ export default class GameScene extends Phaser.Scene {
 
 - [設計模式：可重用物件導向軟體的基礎](https://zh.wikipedia.org/wiki/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%EF%BC%9A%E5%8F%AF%E5%A4%8D%E7%94%A8%E9%9D%A2%E5%90%91%E5%AF%B9%E8%B1%A1%E8%BD%AF%E4%BB%B6%E7%9A%84%E5%9F%BA%E7%A1%80)
 - [Game Programming Patterns](https://gameprogrammingpatterns.com/)
-- [Phaser 3 事件系統](https://photonstorm.github.io/phaser3-docs/Phaser.Events.EventEmitter.html)
+- [Phaser 4 事件系統](https://docs.phaser.io/api-documentation/class/events-eventemitter)
 - [JavaScript 設計模式](https://www.patterns.dev/)
 
 ---

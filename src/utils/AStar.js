@@ -12,16 +12,16 @@ export default class AStar {
    * @param {number} tileSize - 格子大小
    * @returns {Array} 路徑數組 [{x, y}, ...]
    */
-  static findPath(start, goal, map, tileSize = 32) {
-    // 轉換世界座標到格子座標
+  static findPath(start, goal, map, tileSize = 32, offsetY = 0) {
+    // 轉換世界座標到格子座標（扣除遊戲場 Y 偏移）
     const startNode = {
       x: Math.floor(start.x / tileSize),
-      y: Math.floor(start.y / tileSize)
+      y: Math.floor((start.y - offsetY) / tileSize)
     };
 
     const goalNode = {
       x: Math.floor(goal.x / tileSize),
-      y: Math.floor(goal.y / tileSize)
+      y: Math.floor((goal.y - offsetY) / tileSize)
     };
 
     // 檢查起點和終點是否有效
@@ -59,7 +59,7 @@ export default class AStar {
 
       // 到達目標
       if (current.x === goalNode.x && current.y === goalNode.y) {
-        return this.reconstructPath(current, tileSize);
+        return this.reconstructPath(current, tileSize, offsetY);
       }
 
       // 從開放列表移除，加入關閉列表
@@ -193,15 +193,15 @@ export default class AStar {
    * @param {number} tileSize - 格子大小
    * @returns {Array} 世界座標路徑
    */
-  static reconstructPath(node, tileSize) {
+  static reconstructPath(node, tileSize, offsetY = 0) {
     const path = [];
     let current = node;
 
     while (current !== null) {
-      // 轉換回世界座標（格子中心點）
+      // 轉換回世界座標（格子中心點，加回遊戲場 Y 偏移）
       path.unshift({
         x: current.x * tileSize + tileSize / 2,
-        y: current.y * tileSize + tileSize / 2,
+        y: current.y * tileSize + tileSize / 2 + offsetY,
         gridX: current.x,
         gridY: current.y
       });

@@ -19,8 +19,12 @@
   ],
   "author": "Tank Battle Team",
   "license": "MIT",
+  "engines": {
+    "node": ">=24",
+    "npm": ">=11"
+  },
   "dependencies": {
-    "phaser": "^3.60.0"
+    "phaser": "^4.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.22.0",

@@ -1,6 +1,9 @@
 # 🎮 Tank Battle - 經典坦克大戰
 
-> 使用 Phaser.js 3 開發的經典 FC Battle City (1985) 復刻版
+> 使用 Phaser.js 4 開發的經典 FC Battle City (1985) 復刻版
+
+[![Phaser](https://img.shields.io/badge/Phaser-4.1-orange.svg)](https://phaser.io/)
+[![Node.js](https://img.shields.io/badge/Node.js-24+-green.svg)](https://nodejs.org/)
 
 **[🎮 線上試玩](https://blue-rubiks.github.io/tank-battle/)** | [English](README_EN.md) | [繁體中文](README.md)
 
@@ -12,7 +15,10 @@
 
 ## 📸 遊戲截圖
 
-![遊戲截圖](./docs/images/demo.png))
+<p align="center">
+  <img src="./docs/images/title.png" alt="標題畫面" width="45%" />
+  <img src="./docs/images/gameplay.png" alt="遊戲畫面" width="45%" />
+</p>
 
 ## ✨ 核心特性
 
@@ -22,7 +28,7 @@
 - 🤖 **智能 AI** - 進階 AI 系統：預測射擊、視線檢測、包抄戰術、團隊協作
 - 🗺️ **多樣地形** - 7 種地形類型（磚牆、鋼牆、水域、冰地、森林等）
 - 💾 **存檔功能** - 自動保存進度、分數和統計數據
-- ✅ **高品質** - 161 個單元測試全部通過
+- ✅ **高品質** - 206 個單元測試全部通過
 
 ## 🎮 遊戲操作
 
@@ -37,8 +43,8 @@
 
 ### 環境要求
 
-- Node.js 22.x 或更高版本
-- npm 10.x 或更高版本
+- Node.js 24.x 或更高版本
+- npm 11.x 或更高版本
 
 ### 安裝與運行
 
@@ -71,7 +77,7 @@ tank-battle/
 │   ├── systems/           # 遊戲系統（AI、碰撞等）
 │   ├── managers/          # 管理器（音效、存檔）
 │   └── utils/             # 工具類（常數、狀態機、A* 演算法）
-├── tests/                 # 測試文件（161 個測試）
+├── tests/                 # 測試文件（206 個測試）
 ├── public/                # 靜態資源
 │   └── data/             # 關卡數據（5 個關卡）
 └── docs/                  # 技術文檔
@@ -106,7 +112,7 @@ tank-battle/
 
 ## 🛠️ 技術棧
 
-- **前端框架**: Phaser.js 3.60+
+- **前端框架**: Phaser.js 4.1+
 - **語言**: JavaScript ES6+
 - **構建工具**: Webpack 5 + Babel
 - **測試框架**: Jest
@@ -137,9 +143,9 @@ npm test -- --coverage
 ```
 
 測試統計：
-- 測試套件：9 個
-- 測試用例：161 個
-- 測試代碼：2,493 行
+- 測試套件：11 個
+- 測試用例：206 個
+- 測試代碼：3,347 行
 - 通過率：100%
 
 ## 🎨 代碼品質

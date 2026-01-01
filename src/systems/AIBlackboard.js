@@ -286,10 +286,11 @@ export default class AIBlackboard {
 
     const map = this.scene.levelData.map;
     const tileSize = GAME_CONFIG.TILE_SIZE;
+    const offsetY = GAME_CONFIG.PLAY_OFFSET_Y;
 
-    // 轉換為格子坐標
+    // 轉換為格子坐標（扣除遊戲場 Y 偏移）
     const gridX = Math.floor(pos.x / tileSize);
-    const gridY = Math.floor(pos.y / tileSize);
+    const gridY = Math.floor((pos.y - offsetY) / tileSize);
 
     // 檢查邊界
     if (gridY < 0 || gridY >= map.length || gridX < 0 || gridX >= map[0].length) {

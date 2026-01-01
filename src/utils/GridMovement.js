@@ -11,40 +11,51 @@ import { GAME_CONFIG, TILE_TYPES, DIRECTION_VECTORS } from './Constants';
 
 export default class GridMovement {
   /**
-   * 將像素座標對齊到格子中心
-   * @param {number} value - 像素座標
-   * @returns {number} 對齊後的座標
+   * 將像素座標對齊到格子中心（X 軸）
    */
-  static snapToGrid(value) {
+  static snapXToGrid(value) {
     const tileSize = GAME_CONFIG.TILE_SIZE;
     return Math.round(value / tileSize) * tileSize;
   }
 
   /**
+   * 將像素座標對齊到格子中心（Y 軸，內含遊戲場 Y 偏移）
+   */
+  static snapYToGrid(value) {
+    const tileSize = GAME_CONFIG.TILE_SIZE;
+    const offsetY = GAME_CONFIG.PLAY_OFFSET_Y;
+    return Math.round((value - offsetY) / tileSize) * tileSize + offsetY;
+  }
+
+  /**
+   * 舊 API：向後兼容（X 軸對齊）
+   * @deprecated 請改用 snapXToGrid 或 snapYToGrid
+   */
+  static snapToGrid(value) {
+    return this.snapXToGrid(value);
+  }
+
+  /**
    * 將像素座標轉換為格子座標
-   * @param {number} x - X 像素座標
-   * @param {number} y - Y 像素座標
-   * @returns {Object} 格子座標 { gridX, gridY }
    */
   static pixelToGrid(x, y) {
     const tileSize = GAME_CONFIG.TILE_SIZE;
+    const offsetY = GAME_CONFIG.PLAY_OFFSET_Y;
     return {
       gridX: Math.floor(x / tileSize),
-      gridY: Math.floor(y / tileSize)
+      gridY: Math.floor((y - offsetY) / tileSize)
     };
   }
 
   /**
    * 將格子座標轉換為像素座標（格子中心）
-   * @param {number} gridX - 格子 X 座標
-   * @param {number} gridY - 格子 Y 座標
-   * @returns {Object} 像素座標 { x, y }
    */
   static gridToPixel(gridX, gridY) {
     const tileSize = GAME_CONFIG.TILE_SIZE;
+    const offsetY = GAME_CONFIG.PLAY_OFFSET_Y;
     return {
       x: gridX * tileSize + tileSize / 2,
-      y: gridY * tileSize + tileSize / 2
+      y: gridY * tileSize + tileSize / 2 + offsetY
     };
   }
 
@@ -58,8 +69,8 @@ export default class GridMovement {
     const tileSize = GAME_CONFIG.TILE_SIZE;
 
     // 計算最近的格子中心
-    const nearestX = this.snapToGrid(tank.x);
-    const nearestY = this.snapToGrid(tank.y);
+    const nearestX = this.snapXToGrid(tank.x);
+    const nearestY = this.snapYToGrid(tank.y);
 
     // 計算偏移量
     const offsetX = tank.x - nearestX;
@@ -137,6 +148,7 @@ export default class GridMovement {
     if (!map) return true;
 
     const tileSize = GAME_CONFIG.TILE_SIZE;
+    const offsetY = GAME_CONFIG.PLAY_OFFSET_Y;
     const halfTank = 14; // 坦克半寬（略小於實際碰撞體積）
 
     // 檢查坦克四個角落
@@ -149,7 +161,7 @@ export default class GridMovement {
 
     for (const corner of corners) {
       const gridX = Math.floor(corner.x / tileSize);
-      const gridY = Math.floor(corner.y / tileSize);
+      const gridY = Math.floor((corner.y - offsetY) / tileSize);
 
       if (gridY < 0 || gridY >= map.length || gridX < 0 || gridX >= map[0].length) {
         return false;

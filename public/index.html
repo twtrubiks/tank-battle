@@ -5,7 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="經典復刻版坦克大戰遊戲">
   <title>坦克大戰 - Tank Battle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
   <style>
+    @font-face {
+      font-family: 'Cubic 11';
+      src: url('fonts/Cubic_11.woff2') format('woff2');
+      font-weight: normal;
+      font-style: normal;
+      font-display: block;
+    }
+
     * {
       margin: 0;
       padding: 0;
@@ -13,18 +24,20 @@
     }
 
     body {
-      background: #000;
+      background: #050505;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
-      font-family: 'Press Start 2P', monospace, Arial, sans-serif;
+      font-family: 'Press Start 2P', 'Cubic 11', monospace, Arial, sans-serif;
       overflow: hidden;
     }
 
     #game-container {
       position: relative;
-      box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+      box-shadow:
+        0 0 0 2px #6b4d12,
+        0 0 24px rgba(245, 184, 51, 0.25);
     }
 
     #loading {
@@ -32,8 +45,9 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      color: #fff;
-      font-size: 16px;
+      color: #f5b833;
+      font-size: 12px;
+      letter-spacing: 0.2em;
       text-align: center;
       z-index: 1000;
     }
@@ -43,16 +57,17 @@
     }
 
     .loading-bar {
-      width: 200px;
-      height: 20px;
-      border: 2px solid #fff;
+      width: 240px;
+      height: 16px;
+      border: 2px solid #f5b833;
       margin: 20px auto;
       position: relative;
+      background: #0c0c0c;
     }
 
     .loading-bar-fill {
       height: 100%;
-      background: #fff;
+      background: linear-gradient(90deg, #f5b833 0%, #ffce5b 100%);
       width: 0%;
       transition: width 0.3s;
     }

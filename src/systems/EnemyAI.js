@@ -673,7 +673,8 @@ export default class EnemyAI {
       start,
       goal,
       this.scene.levelData.map,
-      GAME_CONFIG.TILE_SIZE
+      GAME_CONFIG.TILE_SIZE,
+      GAME_CONFIG.PLAY_OFFSET_Y
     );
 
     if (path && path.length > 0) {
@@ -819,6 +820,7 @@ export default class EnemyAI {
 
     const map = this.scene.levelData.map;
     const tileSize = GAME_CONFIG.TILE_SIZE;
+    const offsetY = GAME_CONFIG.PLAY_OFFSET_Y;
     const vector = DIRECTION_VECTORS[direction];
 
     // 檢查前方一格的位置
@@ -826,7 +828,7 @@ export default class EnemyAI {
     const checkY = this.tank.y + vector.y * tileSize;
 
     const gridX = Math.floor(checkX / tileSize);
-    const gridY = Math.floor(checkY / tileSize);
+    const gridY = Math.floor((checkY - offsetY) / tileSize);
 
     // 邊界檢查
     if (gridY < 0 || gridY >= map.length || gridX < 0 || gridX >= map[0].length) {
@@ -996,6 +998,7 @@ export default class EnemyAI {
 
     const directions = ['up', 'down', 'left', 'right'];
     const tileSize = GAME_CONFIG.TILE_SIZE;
+    const offsetY = GAME_CONFIG.PLAY_OFFSET_Y;
     const map = this.scene.levelData.map;
 
     // 評估每個方向的安全性
@@ -1008,11 +1011,11 @@ export default class EnemyAI {
       const check2X = this.tank.x + vector.x * tileSize * 2;
       const check2Y = this.tank.y + vector.y * tileSize * 2;
 
-      // 轉換為格子坐標
+      // 轉換為格子坐標（扣除遊戲場 Y 偏移）
       const gridX1 = Math.floor(check1X / tileSize);
-      const gridY1 = Math.floor(check1Y / tileSize);
+      const gridY1 = Math.floor((check1Y - offsetY) / tileSize);
       const gridX2 = Math.floor(check2X / tileSize);
-      const gridY2 = Math.floor(check2Y / tileSize);
+      const gridY2 = Math.floor((check2Y - offsetY) / tileSize);
 
       let score = 0;
 
@@ -1282,12 +1285,13 @@ export default class EnemyAI {
 
     const map = this.scene.levelData.map;
     const tileSize = GAME_CONFIG.TILE_SIZE;
+    const offsetY = GAME_CONFIG.PLAY_OFFSET_Y;
 
-    // 轉換為格子坐標
+    // 轉換為格子坐標（扣除遊戲場 Y 偏移）
     const x0 = Math.floor(from.x / tileSize);
-    const y0 = Math.floor(from.y / tileSize);
+    const y0 = Math.floor((from.y - offsetY) / tileSize);
     const x1 = Math.floor(to.x / tileSize);
-    const y1 = Math.floor(to.y / tileSize);
+    const y1 = Math.floor((to.y - offsetY) / tileSize);
 
     // Bresenham 直線演算法
     const dx = Math.abs(x1 - x0);
@@ -1491,14 +1495,15 @@ export default class EnemyAI {
   _generateRandomPatrolTarget() {
     const margin = 80;
     const width = GAME_CONFIG.WIDTH;
-    const height = GAME_CONFIG.HEIGHT;
+    const playHeight = GAME_CONFIG.PLAY_HEIGHT;
+    const offsetY = GAME_CONFIG.PLAY_OFFSET_Y;
     const maxAttempts = 30;
 
-    // 嘗試生成可行走的隨機位置
+    // 嘗試生成可行走的隨機位置（限制於遊戲場範圍內，避免進入 HUD）
     for (let i = 0; i < maxAttempts; i++) {
       const candidate = {
         x: margin + Math.random() * (width - 2 * margin),
-        y: margin + Math.random() * (height - 2 * margin)
+        y: offsetY + margin + Math.random() * (playHeight - 2 * margin)
       };
 
       // 檢查位置是否可行走
@@ -1524,6 +1529,7 @@ export default class EnemyAI {
 
     const map = this.scene.levelData.map;
     const tileSize = GAME_CONFIG.TILE_SIZE;
+    const offsetY = GAME_CONFIG.PLAY_OFFSET_Y;
     const halfTile = tileSize / 2;
 
     // 檢查中心點和四個角落
@@ -1537,7 +1543,7 @@ export default class EnemyAI {
 
     for (const point of checkPoints) {
       const gridX = Math.floor(point.x / tileSize);
-      const gridY = Math.floor(point.y / tileSize);
+      const gridY = Math.floor((point.y - offsetY) / tileSize);
 
       // 邊界檢查
       if (gridY < 0 || gridY >= map.length || gridX < 0 || gridX >= map[0].length) {

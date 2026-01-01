@@ -10,7 +10,7 @@ Tank Battle 是一個**純前端遊戲專案**，不需要後端服務器，所�
 
 ### 核心框架與庫
 
-#### 1. Phaser.js 3.60+ 🎯
+#### 1. Phaser.js 4.1+ 🎯
 **用途：** 遊戲引擎（核心）
 
 **功能：**
@@ -442,7 +442,7 @@ https://<用戶名>.github.io/<倉庫名>/
 
 | 類別 | 技術 | 版本 | 用途 |
 |-----|------|------|------|
-| **遊戲引擎** | Phaser.js | 3.60+ | 核心遊戲邏輯 |
+| **遊戲引擎** | Phaser.js | 4.1+ | 核心遊戲邏輯 |
 | **程式語言** | JavaScript | ES6+ | 開發語言 |
 | **渲染** | HTML5 Canvas | - | 2D 圖形渲染 |
 | **存儲** | LocalStorage | - | 遊戲存檔 |
@@ -467,6 +467,18 @@ https://<用戶名>.github.io/<倉庫名>/
 - ✅ 無需服務器維護
 - ✅ 無需數據庫
 
+### 1.5 集中式 UI 設計系統
+
+`src/utils/UITheme.js` 作為 Style A 設計系統的單一來源，集中管理：
+
+- **色票** — 金橘主色 (`GOLD/GOLD_2/GOLD_DEEP`)、中性灰階、狀態色
+- **字體** — Press Start 2P（英文，Google Fonts）+ Cubic 11（繁中，自託管 11×11 像素字型，OFL 授權），最終降級 fallback 為 Courier New
+- **文字樣式** — `TITLE_HERO`、`SECTION_TITLE`、`LABEL`、`VALUE`、`KBD_KEY` 等預設
+- **像素工具** — `drawPixelHeart`、`drawPixelTank`、`drawModalFrame`、`drawGoldCorners`
+- **格式化** — `formatScore`（千位逗號）、`formatStage`（兩位數補零）、`formatElapsedTime`（mm:ss）
+
+Canvas 高度 832 → 912（HUD 上 44 + 可玩 832 + HUD 下 36），實體生成、A* 尋路、`GridMovement` 都透過 `GAME_CONFIG.PLAY_OFFSET_Y` / `PLAY_HEIGHT` 處理 Y 偏移。
+
 ### 2. 現代化工具鏈
 - ✅ ES6+ 現代 JavaScript
 - ✅ 自動化測試（206 tests）
@@ -490,7 +502,7 @@ https://<用戶名>.github.io/<倉庫名>/
 ## 🎓 學習資源
 
 ### Phaser.js
-- [官方文檔](https://photonstorm.github.io/phaser3-docs/)
+- [官方文檔](https://docs.phaser.io/)
 - [官方範例](https://phaser.io/examples)
 - [官方教程](https://phaser.io/tutorials)
 

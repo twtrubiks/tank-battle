@@ -51,6 +51,11 @@ module.exports = {
           from: 'public/data',
           to: 'data',
           noErrorOnMissing: false
+        },
+        {
+          from: 'public/fonts',
+          to: 'fonts',
+          noErrorOnMissing: false
         }
       ]
     })

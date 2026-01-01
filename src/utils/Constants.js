@@ -3,9 +3,15 @@
  */
 
 // 遊戲畫布設定
+// HUD 條：上方 44px、下方 36px。可玩區域 832×832（26×26 格）。
+// Canvas 總高 = 44 + 832 + 36 = 912
 export const GAME_CONFIG = {
   WIDTH: 832,           // 26 * 32 (26 格，每格 32px)
-  HEIGHT: 832,
+  HEIGHT: 912,          // 包含 HUD：44 (top) + 832 (play) + 36 (bottom)
+  PLAY_OFFSET_Y: 44,    // 遊戲場左上角 Y 座標（避開頂部 HUD）
+  PLAY_HEIGHT: 832,     // 遊戲場高度（不含 HUD）
+  HUD_TOP_HEIGHT: 44,
+  HUD_BOTTOM_HEIGHT: 36,
   TILE_SIZE: 32,
   MAP_SIZE: 26
 };

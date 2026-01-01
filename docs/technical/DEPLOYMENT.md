@@ -20,8 +20,8 @@
 
 - ✅ GitHub 帳號
 - ✅ Git 已安裝
-- ✅ Node.js 22+ 已安裝
-- ✅ npm 10+ 已安裝
+- ✅ Node.js 24+ 已安裝
+- ✅ npm 11+ 已安裝
 
 ### 專案需求
 
@@ -76,7 +76,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
       # 3. 安裝相依套件
@@ -332,7 +332,7 @@ GitHub Pages 自動啟用 GZIP，無需額外設定。
 
 ```html
 <!-- 使用 CDN 載入 Phaser -->
-<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/phaser@4.1.0/dist/phaser.min.js"></script>
 ```
 
 ### 3. 圖片最佳化
@@ -375,7 +375,7 @@ Webpack 已設定程式碼分割，Phaser 和遊戲程式碼分別打包。
 
 - [GitHub Pages 官方文件](https://docs.github.com/en/pages)
 - [GitHub Actions 文件](https://docs.github.com/en/actions)
-- [Phaser 部署指南](https://phaser.io/tutorials/getting-started-phaser3/part5)
+- [Phaser 官方文檔](https://docs.phaser.io/)
 - [Webpack 生產模式](https://webpack.js.org/guides/production/)
 
 ---

@@ -305,8 +305,8 @@ h(n) ≤ cost(n, n') + h(n')
 
 ```javascript
 class AStar {
-    // 尋找路徑
-    static findPath(start, goal, map, tileSize = 32) { ... }
+    // 尋找路徑（offsetY 對應頂部 HUD 的 PLAY_OFFSET_Y，預設 0）
+    static findPath(start, goal, map, tileSize = 32, offsetY = 0) { ... }
 
     // 啟發式函數（曼哈頓距離）
     static heuristic(a, b) { ... }
@@ -317,8 +317,8 @@ class AStar {
     // 檢查是否可行走
     static isWalkable(node, map) { ... }
 
-    // 重建路徑
-    static reconstructPath(node, tileSize) { ... }
+    // 重建路徑（reconstructPath 會把 offsetY 加回 y 世界座標）
+    static reconstructPath(node, tileSize, offsetY) { ... }
 
     // 簡化路徑
     static simplifyPath(path) { ... }
@@ -330,16 +330,17 @@ class AStar {
 ```javascript
 // src/utils/AStar.js
 
-static findPath(start, goal, map, tileSize = 32) {
+static findPath(start, goal, map, tileSize = 32, offsetY = 0) {
     // 轉換世界座標到格子座標
+    // 由於遊戲場左上角的 Y 從 PLAY_OFFSET_Y (44) 開始，必須先扣除偏移
     const startNode = {
         x: Math.floor(start.x / tileSize),
-        y: Math.floor(start.y / tileSize)
+        y: Math.floor((start.y - offsetY) / tileSize)
     };
 
     const goalNode = {
         x: Math.floor(goal.x / tileSize),
-        y: Math.floor(goal.y / tileSize)
+        y: Math.floor((goal.y - offsetY) / tileSize)
     };
 
     // 檢查起點和終點是否有效
@@ -378,7 +379,7 @@ static findPath(start, goal, map, tileSize = 32) {
 
         // 到達目標
         if (current.x === goalNode.x && current.y === goalNode.y) {
-            return this.reconstructPath(current, tileSize);
+            return this.reconstructPath(current, tileSize, offsetY);
         }
 
         // 從開放列表移除，加入關閉列表
@@ -526,11 +527,14 @@ _moveTowardsPlayer(player) {
 
 _updatePath(target) {
     // 使用 A* 計算路徑
+    // 注意：第 5 個參數 PLAY_OFFSET_Y 用於扣除頂部 HUD 的 44px 偏移，
+    // 否則所有格子座標會往下偏一格，導致路徑錯位。
     const path = AStar.findPath(
         { x: this.tank.x, y: this.tank.y },
         { x: target.x, y: target.y },
         this.scene.levelData.map,
-        GAME_CONFIG.TILE_SIZE
+        GAME_CONFIG.TILE_SIZE,
+        GAME_CONFIG.PLAY_OFFSET_Y
     );
 
     if (path && path.length > 0) {
@@ -951,7 +955,7 @@ function findNearestTarget(start, targets, map) {
    https://gameprogrammingpatterns.com/
    遊戲開發中的設計模式
 
-2. **Phaser 3 Examples - Pathfinding**
+2. **Phaser Examples - Pathfinding**
    https://phaser.io/examples
    Phaser 遊戲引擎的範例
 

@@ -5,6 +5,14 @@
 
 import Phaser from 'phaser';
 import { SCENES, GAME_CONFIG, ENEMY_TYPES, EVENTS, DEPTHS, TILE_TYPES, POWERUP_TYPES } from '../utils/Constants';
+import {
+  PALETTE,
+  HEX,
+  TEXT_STYLES,
+  drawPixelHeart,
+  formatScore,
+  formatStage
+} from '../utils/UITheme';
 import PlayerTank from '../entities/PlayerTank';
 import EnemyTank from '../entities/EnemyTank';
 import Bullet from '../entities/Bullet';
@@ -43,8 +51,13 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
-    // 設定物理世界邊界（確保坦克不能超出畫面）
-    this.physics.world.setBounds(0, 0, GAME_CONFIG.WIDTH, GAME_CONFIG.HEIGHT);
+    // 設定物理世界邊界（限制坦克與子彈在 HUD 之間的可玩區域）
+    this.physics.world.setBounds(
+      0,
+      GAME_CONFIG.PLAY_OFFSET_Y,
+      GAME_CONFIG.WIDTH,
+      GAME_CONFIG.PLAY_HEIGHT
+    );
 
     // 初始化系統
     this.initializeSystems();
@@ -235,11 +248,12 @@ export default class GameScene extends Phaser.Scene {
   // ==========================================
 
   createMap() {
-    // 建立地圖背景
+    // 建立地圖背景（僅可玩區域）
     const bg = this.add.rectangle(
-      0, 0,
+      0,
+      GAME_CONFIG.PLAY_OFFSET_Y,
       GAME_CONFIG.WIDTH,
-      GAME_CONFIG.HEIGHT,
+      GAME_CONFIG.PLAY_HEIGHT,
       0x000000
     );
     bg.setOrigin(0, 0);
@@ -248,12 +262,13 @@ export default class GameScene extends Phaser.Scene {
     // 根據地圖資料建立地圖元素
     const map = this.levelData.map;
     const tileSize = GAME_CONFIG.TILE_SIZE;
+    const offsetY = GAME_CONFIG.PLAY_OFFSET_Y;
 
     for (let y = 0; y < map.length; y++) {
       for (let x = 0; x < map[y].length; x++) {
         const tileType = map[y][x];
         const worldX = x * tileSize + tileSize / 2;
-        const worldY = y * tileSize + tileSize / 2;
+        const worldY = y * tileSize + tileSize / 2 + offsetY;
 
         switch (tileType) {
         case TILE_TYPES.BRICK:
@@ -288,10 +303,10 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
-    // 建立邊框
+    // 建立邊框（僅可玩區域）
     const graphics = this.add.graphics();
     graphics.lineStyle(4, 0x404040);
-    graphics.strokeRect(0, 0, GAME_CONFIG.WIDTH, GAME_CONFIG.HEIGHT);
+    graphics.strokeRect(0, GAME_CONFIG.PLAY_OFFSET_Y, GAME_CONFIG.WIDTH, GAME_CONFIG.PLAY_HEIGHT);
     graphics.setDepth(DEPTHS.MAP_UPPER);
   }
 
@@ -300,7 +315,7 @@ export default class GameScene extends Phaser.Scene {
     const basePos = this.levelData.basePosition;
     const tileSize = GAME_CONFIG.TILE_SIZE;
     const worldX = basePos.x * tileSize + tileSize / 2;
-    const worldY = basePos.y * tileSize + tileSize / 2;
+    const worldY = basePos.y * tileSize + tileSize / 2 + GAME_CONFIG.PLAY_OFFSET_Y;
 
     this.base = new Base(this, worldX, worldY);
     this.collisionSystem.addBase(this.base);
@@ -311,7 +326,7 @@ export default class GameScene extends Phaser.Scene {
     const safeSpawn = this.findSafeSpawnPosition(spawn.x, spawn.y);
     const tileSize = GAME_CONFIG.TILE_SIZE;
     const worldX = safeSpawn.x * tileSize + tileSize / 2;
-    const worldY = safeSpawn.y * tileSize + tileSize / 2;
+    const worldY = safeSpawn.y * tileSize + tileSize / 2 + GAME_CONFIG.PLAY_OFFSET_Y;
 
     this.player = new PlayerTank(this, worldX, worldY);
 
@@ -419,132 +434,270 @@ export default class GameScene extends Phaser.Scene {
   }
 
   createUI() {
-    const hudStyle = {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '18px',
-      fontStyle: 'bold',
-      fill: '#FFCC00',
-      stroke: '#000000',
-      strokeThickness: 2
-    };
+    // 記錄遊戲開始時間
+    this.gameStartTime = this.time.now;
 
-    const valueStyle = {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '18px',
-      fontStyle: 'bold',
-      fill: '#FFFFFF',
-      stroke: '#000000',
-      strokeThickness: 2
-    };
+    // 載入最高分（顯示於頂列右側）
+    this.highScore = this.saveManager ? this.saveManager.getHighScore() : 0;
 
-    // UI 背景面板（更精美的設計）
-    const panelWidth = 220;
-    const panelHeight = 160;
-    const panelX = 10;
-    const panelY = 10;
+    // 計算最大敵人總數（用於敵人格網）
+    this.totalEnemyCount = this.gameState.enemiesRemaining;
 
-    // 面板背景
-    const uiBg = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x000000, 0.85);
-    uiBg.setOrigin(0, 0);
-    uiBg.setDepth(DEPTHS.UI);
-    uiBg.setScrollFactor(0);
-    this.uiElements.push(uiBg);
+    const W = GAME_CONFIG.WIDTH;
+    const H = GAME_CONFIG.HEIGHT;
+    const TOP_H = 44;
+    const BOT_H = 36;
 
-    // 面板邊框（金色雙線）
-    const borderGraphics = this.add.graphics();
-    borderGraphics.setDepth(DEPTHS.UI);
-    borderGraphics.setScrollFactor(0);
-    borderGraphics.lineStyle(3, 0xFFCC00);
-    borderGraphics.strokeRect(panelX, panelY, panelWidth, panelHeight);
-    borderGraphics.lineStyle(1, 0xFF8800);
-    borderGraphics.strokeRect(panelX + 4, panelY + 4, panelWidth - 8, panelHeight - 8);
-    this.uiElements.push(borderGraphics);
+    // ===== 頂部 HUD 條 =====
+    this.createTopBar(W, TOP_H);
 
-    // 標題
-    const titleText = this.add.text(panelX + panelWidth / 2, panelY + 15, '═ 遊戲資訊 ═', {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '16px',
-      fontStyle: 'bold',
-      fill: '#FFCC00',
-      stroke: '#000000',
-      strokeThickness: 2
-    }).setOrigin(0.5, 0).setDepth(DEPTHS.UI).setScrollFactor(0);
-    this.uiElements.push(titleText);
+    // ===== 底部狀態條 =====
+    this.createBottomBar(W, H, BOT_H);
+  }
 
-    // 關卡顯示
-    const levelY = panelY + 40;
-    const levelLabel = this.add.text(panelX + 15, levelY, '關卡:', hudStyle)
-      .setDepth(DEPTHS.UI).setScrollFactor(0);
-    this.uiElements.push(levelLabel);
+  /**
+   * 建立頂部 HUD 條（44px）
+   * 結構：[STAGE chip] [SCORE / HI] [LIVES hearts] [ENEMY GRID]
+   */
+  createTopBar(width, height) {
+    // 背景（漸層黑，完全不透明因為位於遊戲場上方）
+    const bg = this.add.rectangle(0, 0, width, height, PALETTE.BG_1, 1).setOrigin(0);
+    bg.setDepth(DEPTHS.UI).setScrollFactor(0);
+    bg.__baseAlpha = 1;
+    this.uiElements.push(bg);
 
-    this.levelText = this.add.text(panelX + 160, levelY, '1', valueStyle)
-      .setDepth(DEPTHS.UI).setScrollFactor(0);
-    this.uiElements.push(this.levelText);
+    // 上半段較亮的線條（漸層感）
+    const highlight = this.add.rectangle(0, 0, width, 1, 0x1a1a1a, 1).setOrigin(0);
+    highlight.setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(highlight);
 
-    // 分數
-    const scoreY = panelY + 65;
-    const scoreLabel = this.add.text(panelX + 15, scoreY, '分數:', hudStyle)
-      .setDepth(DEPTHS.UI).setScrollFactor(0);
-    this.uiElements.push(scoreLabel);
+    // 底部金色分隔線
+    const sep = this.add.rectangle(0, height - 2, width, 2, PALETTE.GOLD_DEEP).setOrigin(0);
+    sep.setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(sep);
 
-    this.scoreText = this.add.text(panelX + 160, scoreY, '0', valueStyle)
-      .setOrigin(1, 0).setDepth(DEPTHS.UI).setScrollFactor(0);
+    let cursorX = 14;
+    const midY = height / 2;
+
+    // ----- STAGE 標籤（金底黑字）-----
+    const stageW = 132;
+    const stageBg = this.add.rectangle(cursorX, midY, stageW, 24, PALETTE.GOLD).setOrigin(0, 0.5);
+    stageBg.setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(stageBg);
+
+    this.stageChipText = this.add.text(cursorX + stageW / 2, midY, `STAGE ${formatStage(this.currentLevel)}`, {
+      fontFamily: TEXT_STYLES.LABEL_SMALL.fontFamily,
+      fontSize: '10px',
+      color: HEX.BG_0
+    }).setOrigin(0.5).setLetterSpacing(3).setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(this.stageChipText);
+
+    cursorX += stageW + 22;
+
+    // ----- SCORE 區塊 -----
+    const scoreLbl = this.add.text(cursorX, midY - 8, 'SCORE', {
+      fontFamily: TEXT_STYLES.LABEL_SMALL.fontFamily,
+      fontSize: '9px',
+      color: HEX.INK_2
+    }).setOrigin(0, 0.5).setLetterSpacing(2).setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(scoreLbl);
+
+    this.scoreText = this.add.text(cursorX, midY + 9, '0', {
+      fontFamily: TEXT_STYLES.VALUE.fontFamily,
+      fontSize: '13px',
+      color: HEX.GOLD_2
+    }).setOrigin(0, 0.5).setLetterSpacing(1).setDepth(DEPTHS.UI).setScrollFactor(0);
     this.uiElements.push(this.scoreText);
 
-    // 生命值（使用坦克圖示）
-    const livesY = panelY + 90;
-    const livesLabel = this.add.text(panelX + 15, livesY, '生命:', hudStyle)
-      .setDepth(DEPTHS.UI).setScrollFactor(0);
-    this.uiElements.push(livesLabel);
+    cursorX += 130;
 
-    this.livesText = this.add.text(panelX + 160, livesY, '3', valueStyle)
-      .setOrigin(1, 0).setDepth(DEPTHS.UI).setScrollFactor(0);
-    this.uiElements.push(this.livesText);
+    // ----- HI score -----
+    const hiLbl = this.add.text(cursorX, midY - 8, 'HI', {
+      fontFamily: TEXT_STYLES.LABEL_SMALL.fontFamily,
+      fontSize: '9px',
+      color: HEX.INK_2
+    }).setOrigin(0, 0.5).setLetterSpacing(2).setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(hiLbl);
 
-    // 敵人剩餘
-    const enemiesY = panelY + 115;
-    const enemiesLabel = this.add.text(panelX + 15, enemiesY, '敵軍:', hudStyle)
-      .setDepth(DEPTHS.UI).setScrollFactor(0);
-    this.uiElements.push(enemiesLabel);
+    this.hiScoreText = this.add.text(cursorX, midY + 9, formatScore(this.highScore), {
+      fontFamily: TEXT_STYLES.LABEL_SMALL.fontFamily,
+      fontSize: '11px',
+      color: HEX.INK_1
+    }).setOrigin(0, 0.5).setLetterSpacing(1).setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(this.hiScoreText);
 
-    this.enemiesText = this.add.text(panelX + 160, enemiesY, '0', valueStyle)
-      .setOrigin(1, 0).setDepth(DEPTHS.UI).setScrollFactor(0);
-    this.uiElements.push(this.enemiesText);
+    cursorX += 120;
 
-    // 添加小坦克圖示裝飾
-    const tankIcon = this.add.sprite(panelX + 185, livesY + 10, 'player_tank');
-    tankIcon.setScale(0.6);
-    tankIcon.setDepth(DEPTHS.UI);
-    tankIcon.setScrollFactor(0);
-    this.uiElements.push(tankIcon);
+    // ----- LIVES（愛心列）-----
+    const livesAreaX = cursorX;
+    const livesDivider = this.add.rectangle(livesAreaX - 10, midY, 1, 26, PALETTE.GOLD_DEEP).setOrigin(0.5);
+    livesDivider.setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(livesDivider);
 
-    // 添加敵軍圖示裝飾
-    const enemyIcon = this.add.sprite(panelX + 185, enemiesY + 10, 'enemy_basic');
-    enemyIcon.setScale(0.6);
-    enemyIcon.setDepth(DEPTHS.UI);
-    enemyIcon.setScrollFactor(0);
-    this.uiElements.push(enemyIcon);
+    const livesLbl = this.add.text(livesAreaX, midY, 'LIVES', {
+      fontFamily: TEXT_STYLES.LABEL_SMALL.fontFamily,
+      fontSize: '9px',
+      color: HEX.INK_2
+    }).setOrigin(0, 0.5).setLetterSpacing(2).setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(livesLbl);
 
-    // Tab 鍵提示（底部小字提示）
-    const tabHintY = panelY + panelHeight - 18;
-    const tabHint = this.add.text(panelX + panelWidth / 2, tabHintY, '[Tab] 隱藏', {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '12px',
-      fill: '#888888',
-      stroke: '#000000',
-      strokeThickness: 1
-    }).setOrigin(0.5, 0).setDepth(DEPTHS.UI).setScrollFactor(0);
-    this.uiElements.push(tabHint);
+    // "LIVES" letterSpacing 2、9px 字體 ≈ 5*9 + 4*2 = 53px → 預留 64
+    this.livesAnchorX = livesAreaX + 64;
+    this.livesAnchorY = midY;
+    this.livesGraphics = this.add.graphics();
+    this.livesGraphics.setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(this.livesGraphics);
+    this.renderLives(this.gameState.lives);
 
-    // 添加閃爍效果到面板（保存引用以便可以停止）
-    this.borderTween = this.tweens.add({
-      targets: borderGraphics,
-      alpha: 0.7,
-      duration: 2000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
+    // 愛心列實際結束於 anchor + 3*21 + 2*6 = anchor + 75
+    // 分隔線位於 cursorX - 10，需確保 cursorX - 10 > 75，否則第三顆愛心右側會被分隔線蓋住
+    cursorX = this.livesAnchorX + 92;
+
+    // ----- ENEMY GRID（敵人剩餘格網，5×3）-----
+    const enemyAreaX = cursorX;
+    const enemyDivider = this.add.rectangle(enemyAreaX - 10, midY, 1, 26, PALETTE.GOLD_DEEP).setOrigin(0.5);
+    enemyDivider.setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(enemyDivider);
+
+    this.enemyGridLabel = this.add.text(enemyAreaX, midY, '敵 0/0', {
+      fontFamily: TEXT_STYLES.LABEL_SMALL.fontFamily,
+      fontSize: '11px',
+      color: HEX.INK_1,
+      padding: { x: 0, y: 2 }
+    }).setOrigin(0, 0.5).setLetterSpacing(2).setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(this.enemyGridLabel);
+
+    // 11px 下「敵 11/15」實際渲染寬度約 90~100px，預留 110 避免與敵人格網重疊
+    this.enemyGridAnchorX = enemyAreaX + 110;
+    this.enemyGridAnchorY = midY;
+    this.enemyGridGraphics = this.add.graphics();
+    this.enemyGridGraphics.setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(this.enemyGridGraphics);
+    this.renderEnemyGrid();
+
+    // 為了讓 levelText 變更不會 NPE，保留一個 dummy（指向同一 stage chip 文字）
+    this.levelText = this.stageChipText;
+  }
+
+  /**
+   * 建立底部狀態條
+   */
+  createBottomBar(width, mainHeight, height) {
+    const y = mainHeight - height;
+
+    const bg = this.add.rectangle(0, y, width, height, PALETTE.BG_1, 1).setOrigin(0);
+    bg.setDepth(DEPTHS.UI).setScrollFactor(0);
+    bg.__baseAlpha = 1;
+    this.uiElements.push(bg);
+
+    const sep = this.add.rectangle(0, y, width, 2, PALETTE.GOLD_DEEP).setOrigin(0);
+    sep.setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(sep);
+
+    const midY = y + height / 2;
+
+    // 左：鍵盤提示（中文用 Cubic 11，11px 為其 native 像素尺寸才銳利）
+    const left = this.add.text(14, midY, '[TAB] HUD · [P] 暫停 · [SPC] 射擊', {
+      fontFamily: TEXT_STYLES.LABEL_SMALL.fontFamily,
+      fontSize: '11px',
+      color: HEX.INK_1,
+      padding: { x: 0, y: 2 }
+    }).setOrigin(0, 0.5).setLetterSpacing(2).setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(left);
+
+    // 中：擊殺數 / 時間
+    // 鍵盤提示串改 11px 後變寬約 ~376px，KILLS 起點需往右挪避免重疊
+    this.killsText = this.add.text(width / 2 + 20, midY, 'KILLS · 0', {
+      fontFamily: TEXT_STYLES.LABEL_SMALL.fontFamily,
+      fontSize: '9px',
+      color: HEX.INK_2
+    }).setOrigin(0, 0.5).setLetterSpacing(2).setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(this.killsText);
+
+    this.timerText = this.add.text(width / 2 + 120, midY, 'TIME · 00:00', {
+      fontFamily: TEXT_STYLES.LABEL_SMALL.fontFamily,
+      fontSize: '9px',
+      color: HEX.INK_2
+    }).setOrigin(0, 0.5).setLetterSpacing(2).setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(this.timerText);
+
+    // 右：自動存檔狀態
+    const right = this.add.text(width - 14, midY, '● AUTO-SAVE', {
+      fontFamily: TEXT_STYLES.LABEL_SMALL.fontFamily,
+      fontSize: '9px',
+      color: HEX.PHOSPHOR
+    }).setOrigin(1, 0.5).setLetterSpacing(2).setDepth(DEPTHS.UI).setScrollFactor(0);
+    this.uiElements.push(right);
+  }
+
+  /**
+   * 渲染愛心生命列
+   */
+  renderLives(lives) {
+    if (!this.livesGraphics) return;
+    this.livesGraphics.clear();
+
+    const max = 3;
+    const scale = 3;
+    const heartW = 7 * scale;
+    const gap = 6;
+    const live = Math.max(0, Math.min(max, lives || 0));
+
+    for (let i = 0; i < max; i++) {
+      const cx = this.livesAnchorX + heartW / 2 + i * (heartW + gap);
+      const cy = this.livesAnchorY;
+      if (i < live) {
+        this.livesGraphics.fillStyle(PALETTE.DANGER, 1);
+        drawPixelHeart(this.livesGraphics, cx, cy, scale, true);
+      } else {
+        this.livesGraphics.fillStyle(PALETTE.DANGER, 0.18);
+        drawPixelHeart(this.livesGraphics, cx, cy, scale, false);
+      }
+    }
+  }
+
+  /**
+   * 渲染敵人剩餘格網（5 欄 × 3 列 = 最多 15）
+   * 大於 15 時自動延伸至 4 列（最多 20）
+   */
+  renderEnemyGrid() {
+    if (!this.enemyGridGraphics) return;
+    this.enemyGridGraphics.clear();
+
+    const total = this.totalEnemyCount || 0;
+    const remaining = this.gameState.enemiesRemaining || 0;
+    const dead = Math.max(0, total - remaining);
+
+    if (this.enemyGridLabel) {
+      this.enemyGridLabel.setText(`敵 ${remaining}/${total}`);
+    }
+
+    if (total === 0) return;
+
+    const cols = 5;
+    const rows = Math.max(3, Math.ceil(total / cols));
+    const cellSize = 8;
+    const gap = 3;
+
+    for (let i = 0; i < total; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const cx = this.enemyGridAnchorX + col * (cellSize + gap);
+      const cy = this.enemyGridAnchorY - ((rows - 1) * (cellSize + gap)) / 2 + row * (cellSize + gap);
+
+      const isDead = i < dead;
+      if (isDead) {
+        // 已擊敗：暗色空格
+        this.enemyGridGraphics.lineStyle(1, PALETTE.GOLD_DEEP, 0.6);
+        this.enemyGridGraphics.strokeRect(cx - cellSize / 2, cy - cellSize / 2, cellSize, cellSize);
+      } else {
+        // 存活：亮金實心
+        this.enemyGridGraphics.fillStyle(PALETTE.GOLD_3, 1);
+        this.enemyGridGraphics.fillRect(cx - cellSize / 2, cy - cellSize / 2, cellSize, cellSize);
+        this.enemyGridGraphics.lineStyle(1, PALETTE.GOLD, 1);
+        this.enemyGridGraphics.strokeRect(cx - cellSize / 2, cy - cellSize / 2, cellSize, cellSize);
+      }
+    }
   }
 
   // ==========================================
@@ -552,33 +705,25 @@ export default class GameScene extends Phaser.Scene {
   // ==========================================
 
   /**
-   * 切換 UI 顯示/隱藏
+   * 切換 UI 顯示/隱藏（HUD 條）
    */
   toggleUI() {
     this.uiVisible = !this.uiVisible;
 
-    // 如果隱藏 UI，停止邊框閃爍動畫
-    if (!this.uiVisible && this.borderTween) {
-      this.borderTween.stop();
-    }
-
     // 切換所有 UI 元素的可見性，帶有漸變動畫
-    this.uiElements.forEach(element => {
+    // 注意：rectangle 使用獨立 alpha；graphics 也支援 alpha；text 同樣
+    this.uiElements.forEach((element) => {
+      // 對於原本就是半透明的條形背景，需保留其 baseAlpha
+      const targetAlpha = this.uiVisible ? (element.__baseAlpha != null ? element.__baseAlpha : 1) : 0;
       this.tweens.add({
         targets: element,
-        alpha: this.uiVisible ? 1 : 0,
+        alpha: targetAlpha,
         duration: 200,
         ease: 'Power2'
       });
     });
 
-    // 如果顯示 UI，重新啟動邊框閃爍動畫
-    if (this.uiVisible && this.borderTween) {
-      this.borderTween.restart();
-    }
-
-    // 顯示提示訊息
-    const message = this.uiVisible ? 'UI 已顯示' : 'UI 已隱藏';
+    const message = this.uiVisible ? 'HUD 已顯示' : 'HUD 已隱藏';
     this.showToggleMessage(message);
   }
 
@@ -591,10 +736,10 @@ export default class GameScene extends Phaser.Scene {
       this.toggleMessage.destroy();
     }
 
-    // 創建提示訊息（置中顯示）
+    // 創建提示訊息（顯示於可玩區域底部上方）
     this.toggleMessage = this.add.text(
       GAME_CONFIG.WIDTH / 2,
-      GAME_CONFIG.HEIGHT - 50,
+      GAME_CONFIG.PLAY_OFFSET_Y + GAME_CONFIG.PLAY_HEIGHT - 50,
       message,
       {
         fontFamily: 'Courier New, monospace',
@@ -686,10 +831,10 @@ export default class GameScene extends Phaser.Scene {
       this.powerUpMessage.destroy();
     }
 
-    // 創建道具提示訊息（螢幕上方置中顯示）
+    // 創建道具提示訊息（可玩區域上方置中顯示）
     this.powerUpMessage = this.add.text(
       GAME_CONFIG.WIDTH / 2,
-      80,
+      GAME_CONFIG.PLAY_OFFSET_Y + 36,
       message,
       {
         fontFamily: 'Courier New, monospace',
@@ -712,7 +857,7 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({
       targets: this.powerUpMessage,
       alpha: 1,
-      y: 100,
+      y: GAME_CONFIG.PLAY_OFFSET_Y + 56,
       duration: 300,
       ease: 'Back.easeOut'
     });
@@ -723,7 +868,7 @@ export default class GameScene extends Phaser.Scene {
         this.tweens.add({
           targets: this.powerUpMessage,
           alpha: 0,
-          y: 80,
+          y: GAME_CONFIG.PLAY_OFFSET_Y + 36,
           duration: 300,
           ease: 'Power2',
           onComplete: () => {
@@ -800,7 +945,7 @@ export default class GameScene extends Phaser.Scene {
 
     const tileSize = GAME_CONFIG.TILE_SIZE;
     const worldX = spawnData.x * tileSize + tileSize / 2;
-    const worldY = spawnData.y * tileSize + tileSize / 2;
+    const worldY = spawnData.y * tileSize + tileSize / 2 + GAME_CONFIG.PLAY_OFFSET_Y;
 
     const enemy = new EnemyTank(this, worldX, worldY, type);
     const ai = new EnemyAI(this, enemy);
@@ -863,7 +1008,7 @@ export default class GameScene extends Phaser.Scene {
         const mapX = basePos.x + dx;
         const mapY = basePos.y + dy;
         const worldX = mapX * tileSize + tileSize / 2;
-        const worldY = mapY * tileSize + tileSize / 2;
+        const worldY = mapY * tileSize + tileSize / 2 + GAME_CONFIG.PLAY_OFFSET_Y;
 
         // 查找並移除原本的磚牆
         const existingWall = this.collisionSystem.wallGroup.getChildren().find(wall =>
@@ -927,7 +1072,7 @@ export default class GameScene extends Phaser.Scene {
     const safeSpawn = this.findSafeSpawnPosition(spawn.x, spawn.y);
     const tileSize = GAME_CONFIG.TILE_SIZE;
     const worldX = safeSpawn.x * tileSize + tileSize / 2;
-    const worldY = safeSpawn.y * tileSize + tileSize / 2;
+    const worldY = safeSpawn.y * tileSize + tileSize / 2 + GAME_CONFIG.PLAY_OFFSET_Y;
 
     // 建立新的玩家坦克
     this.player = new PlayerTank(this, worldX, worldY);
@@ -949,7 +1094,7 @@ export default class GameScene extends Phaser.Scene {
       if (pos) {
         const tileSize = GAME_CONFIG.TILE_SIZE;
         const worldX = pos.x * tileSize + tileSize / 2;
-        const worldY = pos.y * tileSize + tileSize / 2;
+        const worldY = pos.y * tileSize + tileSize / 2 + GAME_CONFIG.PLAY_OFFSET_Y;
         // 不指定類型，讓 spawnPowerUp 隨機選擇
         this.spawnPowerUp(worldX, worldY);
 
@@ -1000,21 +1145,34 @@ export default class GameScene extends Phaser.Scene {
 
   updateScore(score) {
     this.gameState.score = score;
-    this.scoreText.setText(score.toString());
+    if (this.scoreText) {
+      this.scoreText.setText(formatScore(score));
+    }
+    // 達到舊高分時更新顯示（避免 HI 比 SCORE 還低）
+    if (this.hiScoreText && score > (this.highScore || 0)) {
+      this.highScore = score;
+      this.hiScoreText.setText(formatScore(score));
+      this.hiScoreText.setColor(HEX.GOLD_2);
+    }
   }
 
   updateLives(lives) {
     this.gameState.lives = lives;
-    this.livesText.setText(lives.toString());
+    this.renderLives(lives);
   }
 
   updateEnemies() {
-    this.enemiesText.setText(this.gameState.enemiesRemaining.toString());
+    this.renderEnemyGrid();
+
+    // 擊殺數同步顯示於底部狀態條
+    if (this.killsText) {
+      this.killsText.setText(`KILLS · ${this.gameState.enemiesKilled || 0}`);
+    }
   }
 
   updateLevel(level) {
-    if (this.levelText) {
-      this.levelText.setText(level.toString());
+    if (this.stageChipText) {
+      this.stageChipText.setText(`STAGE ${formatStage(level)}`);
     }
   }
 
@@ -1199,6 +1357,18 @@ export default class GameScene extends Phaser.Scene {
     // 更新 AI 黑板
     if (this.aiBlackboard) {
       this.aiBlackboard.update();
+    }
+
+    // 更新底部時間顯示（每 ~250ms 更新一次以節省繪製）
+    if (this.timerText && this.gameStartTime != null) {
+      if (!this._lastTimerTick || time - this._lastTimerTick > 250) {
+        const elapsed = time - this.gameStartTime;
+        const totalSec = Math.max(0, Math.floor(elapsed / 1000));
+        const m = String(Math.floor(totalSec / 60)).padStart(2, '0');
+        const s = String(totalSec % 60).padStart(2, '0');
+        this.timerText.setText(`TIME · ${m}:${s}`);
+        this._lastTimerTick = time;
+      }
     }
 
     // 更新玩家
