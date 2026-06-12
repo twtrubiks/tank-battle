@@ -965,14 +965,18 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
+    // 挑選未被坦克佔據的出生點：直接疊生在玩家身上時，
+    // 兩個不可推動的 body 深度重疊，物理引擎無法分離
+    const spawnPoint = this.findFreeSpawnPoint();
+    if (!spawnPoint) {
+      // 所有出生點都被佔據，稍後重試（不消耗佇列）
+      this.time.delayedCall(500, () => this.spawnNextEnemy());
+      return;
+    }
+
     const type = this.enemyQueue.shift();
-    const spawnData = Phaser.Utils.Array.GetRandom(this.levelData.enemySpawns);
 
-    const tileSize = GAME_CONFIG.TILE_SIZE;
-    const worldX = spawnData.x * tileSize + tileSize / 2;
-    const worldY = spawnData.y * tileSize + tileSize / 2 + GAME_CONFIG.PLAY_OFFSET_Y;
-
-    const enemy = new EnemyTank(this, worldX, worldY, type);
+    const enemy = new EnemyTank(this, spawnPoint.x, spawnPoint.y, type);
     const ai = new EnemyAI(this, enemy);
     enemy.setAI(ai);
 
@@ -983,6 +987,53 @@ export default class GameScene extends Phaser.Scene {
     if (this.enemyQueue.length > 0) {
       this.time.delayedCall(3000, () => this.spawnNextEnemy());
     }
+  }
+
+  /**
+   * 從關卡出生點中挑選一個沒有坦克佔據的位置（隨機順序）
+   * @returns {{x: number, y: number}|null} 世界座標，全部被佔據時回傳 null
+   */
+  findFreeSpawnPoint() {
+    const tileSize = GAME_CONFIG.TILE_SIZE;
+    const clearance = tileSize * 1.5;
+
+    const spawns = [...this.levelData.enemySpawns];
+    Phaser.Utils.Array.Shuffle(spawns);
+
+    for (const spawn of spawns) {
+      const worldX = spawn.x * tileSize + tileSize / 2;
+      const worldY = spawn.y * tileSize + tileSize / 2 + GAME_CONFIG.PLAY_OFFSET_Y;
+
+      if (this.isSpawnPointFree(worldX, worldY, clearance)) {
+        return { x: worldX, y: worldY };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 檢查出生點周圍是否沒有任何坦克
+   * @param {number} worldX - 世界 X 座標
+   * @param {number} worldY - 世界 Y 座標
+   * @param {number} clearance - 最小淨空距離
+   * @returns {boolean}
+   */
+  isSpawnPointFree(worldX, worldY, clearance) {
+    const tanks = [];
+
+    if (this.player && this.player.active) {
+      tanks.push(this.player);
+    }
+    this.enemies.getChildren().forEach(enemy => {
+      if (enemy.active) {
+        tanks.push(enemy);
+      }
+    });
+
+    return tanks.every(tank =>
+      Phaser.Math.Distance.Between(worldX, worldY, tank.x, tank.y) >= clearance
+    );
   }
 
   // ==========================================
