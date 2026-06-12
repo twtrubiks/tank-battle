@@ -4,7 +4,7 @@
  */
 
 import Phaser from 'phaser';
-import { DEPTHS } from '../utils/Constants';
+import { DEPTHS, TILE_TYPES } from '../utils/Constants';
 
 export default class SteelWall extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
@@ -28,5 +28,15 @@ export default class SteelWall extends Phaser.Physics.Arcade.Sprite {
     if (damage >= 2) {
       this.destroy();
     }
+  }
+
+  /**
+   * 摧毀時同步地圖資料：該格變為空地（AI 走位與尋路依賴 map）
+   */
+  destroy(fromScene) {
+    if (this.scene && this.scene.setMapTileAt) {
+      this.scene.setMapTileAt(this.x, this.y, TILE_TYPES.EMPTY);
+    }
+    super.destroy(fromScene);
   }
 }

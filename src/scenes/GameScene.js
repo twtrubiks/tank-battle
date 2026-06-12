@@ -157,7 +157,9 @@ export default class GameScene extends Phaser.Scene {
 
     // 檢查關卡資料是否存在
     if (this.cache.json.exists(levelKey)) {
-      this.levelData = this.cache.json.get(levelKey);
+      // 深拷貝：遊戲進行中會即時更新 map（牆壁破壞同步），
+      // 不可直接修改 Phaser JSON cache 中的共享物件，否則重玩關卡時地圖會缺牆
+      this.levelData = JSON.parse(JSON.stringify(this.cache.json.get(levelKey)));
     } else {
       // 使用預設關卡資料
       this.levelData = this.getDefaultLevelData();
@@ -410,6 +412,28 @@ export default class GameScene extends Phaser.Scene {
     // 如果還是找不到，使用預設安全位置
     console.error('❌ 無法找到安全生成位置，使用預設位置 (8, 24)');
     return { x: 8, y: 24 };
+  }
+
+  /**
+   * 將世界座標對應的地圖格子設為指定地形
+   * 牆壁實體與 levelData.map 必須保持同步，AI 走位判斷與尋路都依賴 map
+   * @param {number} worldX - 世界 X 座標
+   * @param {number} worldY - 世界 Y 座標
+   * @param {number} tileType - TILE_TYPES 地形類型
+   */
+  setMapTileAt(worldX, worldY, tileType) {
+    if (!this.levelData || !this.levelData.map) return;
+
+    const map = this.levelData.map;
+    const tileSize = GAME_CONFIG.TILE_SIZE;
+    const gridX = Math.floor(worldX / tileSize);
+    const gridY = Math.floor((worldY - GAME_CONFIG.PLAY_OFFSET_Y) / tileSize);
+
+    if (gridY < 0 || gridY >= map.length || gridX < 0 || gridX >= map[0].length) {
+      return;
+    }
+
+    map[gridY][gridX] = tileType;
   }
 
   /**
@@ -1027,9 +1051,10 @@ export default class GameScene extends Phaser.Scene {
           existingWall.destroy(); // 移除原本的牆
         }
 
-        // 創建鋼牆
+        // 創建鋼牆（並同步地圖資料）
         const steel = new SteelWall(this, worldX, worldY);
         this.collisionSystem.addWall(steel);
+        this.setMapTileAt(worldX, worldY, TILE_TYPES.STEEL);
         this.baseProtectionWalls.push(steel);
       }
     }
@@ -1049,10 +1074,11 @@ export default class GameScene extends Phaser.Scene {
       // 恢復原本的磚牆
       if (this.savedBaseWalls) {
         this.savedBaseWalls.forEach(wallInfo => {
-          // 根據類型恢復磚牆
+          // 根據類型恢復磚牆（並同步地圖資料）
           if (wallInfo.type === 'brick') {
             const wall = new BrickWall(this, wallInfo.x, wallInfo.y);
             this.collisionSystem.addWall(wall);
+            this.setMapTileAt(wallInfo.x, wallInfo.y, TILE_TYPES.BRICK);
           }
         });
         this.savedBaseWalls = [];
