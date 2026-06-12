@@ -1506,34 +1506,28 @@ export default class GameScene extends Phaser.Scene {
       }
     });
 
-    // 檢查冰地效果
-    this.iceTerrains.getChildren().forEach(ice => {
-      tanks.forEach(tank => {
-        if (ice.isOverlapping(tank)) {
-          if (!tank.onIce) {
-            ice.onTankEnter(tank);
-          }
-        } else {
-          if (tank.onIce) {
-            ice.onTankExit(tank);
-          }
-        }
-      });
-    });
+    // 進出判定必須先聚合「所有」地形 tile 的重疊結果再執行一次：
+    // 逐 tile 判定時，站在 A 冰塊上但迭代到不重疊的 B 冰塊會被誤判離開，
+    // 同一幀內 enter/exit 互踩，最終狀態取決於 tile 迭代順序
+    const iceTiles = this.iceTerrains.getChildren();
+    const forestTiles = this.forestTerrains.getChildren();
 
-    // 檢查森林遮蔽效果
-    this.forestTerrains.getChildren().forEach(forest => {
-      tanks.forEach(tank => {
-        if (forest.isOverlapping(tank)) {
-          if (!tank.inForest) {
-            forest.onTankEnter(tank);
-          }
-        } else {
-          if (tank.inForest) {
-            forest.onTankExit(tank);
-          }
-        }
-      });
+    tanks.forEach(tank => {
+      // 冰地滑行效果
+      const touchingIce = iceTiles.find(ice => ice.isOverlapping(tank));
+      if (touchingIce && !tank.onIce) {
+        touchingIce.onTankEnter(tank);
+      } else if (!touchingIce && tank.onIce && iceTiles.length > 0) {
+        iceTiles[0].onTankExit(tank);
+      }
+
+      // 森林遮蔽效果
+      const touchingForest = forestTiles.find(forest => forest.isOverlapping(tank));
+      if (touchingForest && !tank.inForest) {
+        touchingForest.onTankEnter(tank);
+      } else if (!touchingForest && tank.inForest && forestTiles.length > 0) {
+        forestTiles[0].onTankExit(tank);
+      }
     });
   }
 

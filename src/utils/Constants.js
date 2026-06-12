@@ -32,7 +32,11 @@ export const TANK_CONFIG = {
   // 坦克尺寸
   TANK_SIZE: 32,
   TANK_BODY_SIZE: 28,
-  TANK_BODY_OFFSET: 2
+  TANK_BODY_OFFSET: 2,
+
+  // 阻力（冰上放開方向鍵後靠阻力自然減速，產生滑行）
+  NORMAL_DRAG: 400,
+  ICE_DRAG: 150     // 速度 120 時滑行約 1.5 格、速度 60 約 0.4 格
 };
 
 // 敵人類型配置

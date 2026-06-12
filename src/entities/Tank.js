@@ -71,7 +71,7 @@ export default class Tank extends Phaser.Physics.Arcade.Sprite {
     this.setCollideWorldBounds(true);
 
     // 設定阻力（停止時快速減速）
-    this.body.setDrag(400);
+    this.body.setDrag(TANK_CONFIG.NORMAL_DRAG);
 
     // 防止被其他坦克推動（經典坦克大戰行為）
     this.body.pushable = false;
@@ -113,8 +113,14 @@ export default class Tank extends Phaser.Physics.Arcade.Sprite {
 
   /**
    * 停止移動
+   * @param {boolean} force - 強制立即停止（冰凍等狀態用）
    */
-  stop() {
+  stop(force = false) {
+    // 冰上滑行：放開方向時不立即歸零，由降低的阻力自然減速
+    if (this.onIce && !force) {
+      return;
+    }
+
     this.setVelocity(0, 0);
   }
 
@@ -239,7 +245,7 @@ export default class Tank extends Phaser.Physics.Arcade.Sprite {
    */
   setFrozen(duration) {
     this.isFrozen = true;
-    this.stop();
+    this.stop(true);
     this.setTint(0x00FFFF);
 
     this.scene.time.delayedCall(duration, () => {

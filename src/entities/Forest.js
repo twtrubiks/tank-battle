@@ -27,8 +27,9 @@ export default class Forest extends Phaser.GameObjects.Sprite {
    */
   onTankEnter(tank) {
     // 略微降低坦克的 alpha 值，創造被遮蔽的效果
+    // 固定值而非紀錄進入時的 alpha：生成/無敵閃爍動畫進行中
+    // 捕捉到的是動畫中間值，恢復時會殘留錯誤透明度
     if (tank.setAlpha) {
-      tank._originalAlpha = tank.alpha;
       tank.setAlpha(0.7);
     }
 
@@ -41,10 +42,9 @@ export default class Forest extends Phaser.GameObjects.Sprite {
    * @param {Tank} tank - 坦克實例
    */
   onTankExit(tank) {
-    // 恢復坦克的原始 alpha 值
-    if (tank.setAlpha && tank._originalAlpha !== undefined) {
-      tank.setAlpha(tank._originalAlpha);
-      delete tank._originalAlpha;
+    // 恢復完整透明度
+    if (tank.setAlpha) {
+      tank.setAlpha(1);
     }
 
     // 清除森林標記

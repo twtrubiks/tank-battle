@@ -41,45 +41,41 @@ describe('地形效果', () => {
 
   describe('冰地（Ice）', () => {
     test('坦克進入冰地時應該降低阻力', () => {
+      const { TANK_CONFIG } = require('../../src/utils/Constants');
       const tank = {
-        drag: 400,
+        drag: TANK_CONFIG.NORMAL_DRAG,
         onIce: false
       };
 
       // 模擬進入冰地
       const originalDrag = tank.drag;
-      tank.drag = 50; // 冰地阻力
+      tank.drag = TANK_CONFIG.ICE_DRAG;
       tank.onIce = true;
 
       expect(tank.drag).toBeLessThan(originalDrag);
-      expect(tank.drag).toBe(50);
+      expect(tank.drag).toBe(TANK_CONFIG.ICE_DRAG);
       expect(tank.onIce).toBe(true);
     });
 
     test('坦克離開冰地時應該恢復原始阻力', () => {
+      const { TANK_CONFIG } = require('../../src/utils/Constants');
       const tank = {
-        drag: 50,
-        onIce: true,
-        originalDrag: 400
+        drag: TANK_CONFIG.ICE_DRAG,
+        onIce: true
       };
 
-      // 模擬離開冰地
-      tank.drag = tank.originalDrag;
+      // 模擬離開冰地（恢復為全域常數，不依賴 per-tile 紀錄）
+      tank.drag = TANK_CONFIG.NORMAL_DRAG;
       tank.onIce = false;
 
-      expect(tank.drag).toBe(400);
+      expect(tank.drag).toBe(TANK_CONFIG.NORMAL_DRAG);
       expect(tank.onIce).toBe(false);
     });
 
-    test('冰地滑行係數應該正確', () => {
-      const ice = {
-        type: 'ice',
-        slipperiness: 0.95,
-        reducedDrag: 50
-      };
+    test('冰地阻力應該明顯低於一般地面', () => {
+      const { TANK_CONFIG } = require('../../src/utils/Constants');
 
-      expect(ice.slipperiness).toBeGreaterThan(0.9);
-      expect(ice.reducedDrag).toBeLessThan(100);
+      expect(TANK_CONFIG.ICE_DRAG).toBeLessThan(TANK_CONFIG.NORMAL_DRAG / 2);
     });
   });
 
