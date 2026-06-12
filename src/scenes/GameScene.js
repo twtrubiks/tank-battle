@@ -1016,13 +1016,23 @@ export default class GameScene extends Phaser.Scene {
   activateBaseProtection(duration) {
     if (!this.base || this.base.isDestroyed) return;
 
+    // 防護中重複拾取：只重設計時器（鋼牆已存在，原牆紀錄保留第一次的）
+    // 不可重建牆，否則會把第一次的鋼牆誤存成「原牆」、原磚牆紀錄遺失
+    if (this.gameState.baseProtected) {
+      if (this.baseProtectionTimer) {
+        this.baseProtectionTimer.remove(false);
+      }
+      this.baseProtectionTimer = this.time.delayedCall(duration, () => this._endBaseProtection());
+      return;
+    }
+
     this.gameState.baseProtected = true;
 
     // 建立防護牆（鋼牆）
     const basePos = this.levelData.basePosition;
     const tileSize = GAME_CONFIG.TILE_SIZE;
     this.baseProtectionWalls = [];
-    this.savedBaseWalls = []; // 保存原本的磚牆
+    this.savedBaseWalls = []; // 保存原本的牆
 
     // 基地周圍一圈變成鋼牆
     for (let dx = -1; dx <= 1; dx++) {
@@ -1034,7 +1044,7 @@ export default class GameScene extends Phaser.Scene {
         const worldX = mapX * tileSize + tileSize / 2;
         const worldY = mapY * tileSize + tileSize / 2 + GAME_CONFIG.PLAY_OFFSET_Y;
 
-        // 查找並移除原本的磚牆
+        // 查找並移除原本的牆
         const existingWall = this.collisionSystem.wallGroup.getChildren().find(wall =>
           wall.active &&
           Math.abs(wall.x - worldX) < 1 &&
@@ -1042,7 +1052,7 @@ export default class GameScene extends Phaser.Scene {
         );
 
         if (existingWall) {
-          // 保存原牆資訊以便恢復（type: 'brick' / 'steel'）
+          // 保存原牆資訊以便恢復（type: 'brick' / 'steel' / 'water'）
           this.savedBaseWalls.push({
             x: worldX,
             y: worldY,
@@ -1059,31 +1069,44 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
-    // 持續時間結束後移除鋼牆並恢復磚牆
-    this.time.delayedCall(duration, () => {
-      this.gameState.baseProtected = false;
+    // 持續時間結束後移除鋼牆並恢復原牆
+    this.baseProtectionTimer = this.time.delayedCall(duration, () => this._endBaseProtection());
+  }
 
-      // 移除鋼牆
-      if (this.baseProtectionWalls) {
-        this.baseProtectionWalls.forEach(wall => {
-          if (wall.active) wall.destroy();
-        });
-        this.baseProtectionWalls = [];
-      }
+  /**
+   * 結束基地防護：移除防護鋼牆並恢復原本的牆
+   * @private
+   */
+  _endBaseProtection() {
+    this.gameState.baseProtected = false;
+    this.baseProtectionTimer = null;
 
-      // 恢復原本的磚牆
-      if (this.savedBaseWalls) {
-        this.savedBaseWalls.forEach(wallInfo => {
-          // 根據類型恢復磚牆（並同步地圖資料）
-          if (wallInfo.type === 'brick') {
-            const wall = new BrickWall(this, wallInfo.x, wallInfo.y);
-            this.collisionSystem.addWall(wall);
-            this.setMapTileAt(wallInfo.x, wallInfo.y, TILE_TYPES.BRICK);
-          }
-        });
-        this.savedBaseWalls = [];
-      }
-    });
+    // 移除鋼牆
+    if (this.baseProtectionWalls) {
+      this.baseProtectionWalls.forEach(wall => {
+        if (wall.active) wall.destroy();
+      });
+      this.baseProtectionWalls = [];
+    }
+
+    // 依原類型恢復牆壁（並同步地圖資料）
+    if (this.savedBaseWalls) {
+      const wallFactories = {
+        brick: { create: (x, y) => new BrickWall(this, x, y), tile: TILE_TYPES.BRICK },
+        steel: { create: (x, y) => new SteelWall(this, x, y), tile: TILE_TYPES.STEEL },
+        water: { create: (x, y) => new Water(this, x, y), tile: TILE_TYPES.WATER }
+      };
+
+      this.savedBaseWalls.forEach(wallInfo => {
+        const factory = wallFactories[wallInfo.type];
+        if (factory) {
+          const wall = factory.create(wallInfo.x, wallInfo.y);
+          this.collisionSystem.addWall(wall);
+          this.setMapTileAt(wallInfo.x, wallInfo.y, factory.tile);
+        }
+      });
+      this.savedBaseWalls = [];
+    }
   }
 
   // ==========================================
