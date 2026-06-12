@@ -26,6 +26,7 @@ import Forest from '../entities/Forest';
 import CollisionSystem from '../systems/CollisionSystem';
 import EnemyAI from '../systems/EnemyAI';
 import AIBlackboard from '../systems/AIBlackboard';
+import GridMovement from '../utils/GridMovement';
 import ObjectPool from '../utils/ObjectPool';
 import AudioManager from '../managers/AudioManager';
 import SaveManager from '../managers/SaveManager';
@@ -1446,20 +1447,46 @@ export default class GameScene extends Phaser.Scene {
   }
 
   handlePlayerInput() {
+    let moveDirection = null;
+
     if (this.cursors.up.isDown) {
-      this.player.move('up');
+      moveDirection = 'up';
     } else if (this.cursors.down.isDown) {
-      this.player.move('down');
+      moveDirection = 'down';
     } else if (this.cursors.left.isDown) {
-      this.player.move('left');
+      moveDirection = 'left';
     } else if (this.cursors.right.isDown) {
-      this.player.move('right');
+      moveDirection = 'right';
+    }
+
+    if (moveDirection) {
+      this.player.move(moveDirection);
+      this.applyCornerSlide(this.player, moveDirection);
     } else {
       this.player.stop();
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.fireKey)) {
       this.player.shoot();
+    }
+  }
+
+  /**
+   * 轉角滑動輔助：移動時將坦克往通道中心線微調
+   * 26px 車身過 32px 縫隙需要 ±3px 對準精度，沒有輔助時極易卡在牆角
+   * @param {Tank} tank - 坦克
+   * @param {string} direction - 移動方向
+   */
+  applyCornerSlide(tank, direction) {
+    const map = this.levelData && this.levelData.map;
+    const slide = GridMovement.calculateCornerSlide(tank, direction, map);
+
+    if (slide) {
+      if (slide.axis === 'x') {
+        tank.x += slide.amount;
+      } else {
+        tank.y += slide.amount;
+      }
     }
   }
 
