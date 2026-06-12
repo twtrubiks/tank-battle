@@ -10,7 +10,8 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1'
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^phaser$': '<rootDir>/tests/mocks/phaser.js'
   },
   transform: {
     '^.+\\.js$': 'babel-jest'

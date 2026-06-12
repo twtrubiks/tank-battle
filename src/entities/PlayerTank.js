@@ -247,6 +247,11 @@ export default class PlayerTank extends Tank {
    * @param {number} damage - 傷害值
    */
   takeDamage(damage) {
+    // 已死亡時不得重複處理（同幀多顆子彈命中會造成生命雙扣與重複重生）
+    if (this.isDestroyed) {
+      return;
+    }
+
     // 檢查護盾
     if (this.powerUps.shield || this.isInvincible) {
       return;
