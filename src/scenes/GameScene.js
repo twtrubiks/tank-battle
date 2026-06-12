@@ -1438,7 +1438,9 @@ export default class GameScene extends Phaser.Scene {
     this.updateTerrainEffects();
 
     // 清理無效子彈
-    this.bullets.getChildren().forEach(bullet => {
+    // getChildren() 回傳內部陣列，迭代中 remove 會跳過元素，先複製
+    const bullets = [...this.bullets.getChildren()];
+    bullets.forEach(bullet => {
       if (!bullet.active) {
         this.bulletPool.release(bullet);
         this.bullets.remove(bullet, false, false);

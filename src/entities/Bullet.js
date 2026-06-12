@@ -78,12 +78,7 @@ export default class Bullet extends Phaser.Physics.Arcade.Sprite {
       // 計算並設定速度
       const vector = DIRECTION_VECTORS[direction];
       if (vector) {
-        const vx = vector.x * this.speed;
-        const vy = vector.y * this.speed;
-        this.body.setVelocity(vx, vy);
-
-        // Debug: 確認速度已設定
-        console.log(`Bullet fired: direction=${direction}, vx=${vx}, vy=${vy}, body.velocity=(${this.body.velocity.x}, ${this.body.velocity.y})`);
+        this.body.setVelocity(vector.x * this.speed, vector.y * this.speed);
       }
     } else {
       console.warn('Bullet has no body! Make sure it\'s added to bulletGroup first.');
@@ -101,9 +96,10 @@ export default class Bullet extends Phaser.Physics.Arcade.Sprite {
   preUpdate(time, delta) {
     super.preUpdate(time, delta);
 
-    // 檢查是否超出世界邊界
+    // 超出世界邊界：在邊界上爆炸（有火花回饋），而非無聲消失
+    // 貼著邊界開火時子彈生成點即在界外，沒有回饋會像是沒射出去
     if (!this.scene.physics.world.bounds.contains(this.x, this.y)) {
-      this.deactivate();
+      this.onHit();
     }
   }
 
