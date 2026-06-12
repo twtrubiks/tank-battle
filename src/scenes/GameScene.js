@@ -274,30 +274,35 @@ export default class GameScene extends Phaser.Scene {
         const worldY = y * tileSize + tileSize / 2 + offsetY;
 
         switch (tileType) {
-        case TILE_TYPES.BRICK:
+        case TILE_TYPES.BRICK: {
           const brick = new BrickWall(this, worldX, worldY);
           this.collisionSystem.addWall(brick);
           break;
+        }
 
-        case TILE_TYPES.STEEL:
+        case TILE_TYPES.STEEL: {
           const steel = new SteelWall(this, worldX, worldY);
           this.collisionSystem.addWall(steel);
           break;
+        }
 
-        case TILE_TYPES.WATER:
+        case TILE_TYPES.WATER: {
           const water = new Water(this, worldX, worldY);
           this.collisionSystem.addWall(water); // 水域阻擋坦克
           break;
+        }
 
-        case TILE_TYPES.ICE:
+        case TILE_TYPES.ICE: {
           const ice = new Ice(this, worldX, worldY);
           this.iceTerrains.add(ice);
           break;
+        }
 
-        case TILE_TYPES.FOREST:
+        case TILE_TYPES.FOREST: {
           const forest = new Forest(this, worldX, worldY);
           this.forestTerrains.add(forest);
           break;
+        }
 
         case TILE_TYPES.BASE:
           // 基地在 createBase() 中單獨建立
@@ -356,15 +361,15 @@ export default class GameScene extends Phaser.Scene {
     switch (player.starLevel) {
     case 4:
       player.maxBullets = 3;
-      // 繼續往下執行，累積所有效果
+      // falls through — 繼續往下執行，累積所有效果
     case 3:
       player.bulletDamage = 2;
-      // 繼續往下執行
+      // falls through — 繼續往下執行
     case 2:
       if (player.starLevel === 2) {
         player.maxBullets = 2;
       }
-      // 繼續往下執行
+      // falls through — 繼續往下執行
     case 1:
       player.speed = player.baseSpeed * 1.3;
       break;
