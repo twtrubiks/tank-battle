@@ -23,6 +23,8 @@ export default class EnemyTank extends Tank {
 
     super(scene, x, y, config.texture);
 
+    this.faction = 'enemy';
+
     // 敵人屬性
     this.enemyType = type;
     this.config = ENEMY_TYPES[type];

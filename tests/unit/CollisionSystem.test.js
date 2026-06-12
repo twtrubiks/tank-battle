@@ -1,364 +1,132 @@
 /**
  * CollisionSystem 碰撞系統單元測試
  * 測試友軍傷害防止、水域碰撞等邏輯
+ *
+ * bulletTankFilter 直接測試真實實作（faction 欄位判定，
+ * 不依賴 constructor.name，避免 production 壓縮改名造成誤判）
  */
 
+import CollisionSystem from '../../src/systems/CollisionSystem';
+
 describe('CollisionSystem', () => {
+  let collisionSystem;
+
+  beforeEach(() => {
+    collisionSystem = new CollisionSystem({});
+  });
+
+  /**
+   * 建立測試用坦克
+   * @param {string} faction - 'player' | 'enemy'
+   * @param {Object} extra - 額外屬性
+   */
+  const makeTank = (faction, extra = {}) => ({ faction, ...extra });
+
+  /**
+   * 建立測試用子彈
+   * @param {Object} owner - 發射者
+   */
+  const makeBullet = (owner, active = true) => ({
+    active,
+    owner,
+    isPlayerBullet: !!owner && owner.faction === 'player'
+  });
+
   describe('bulletTankFilter - 子彈與坦克碰撞過濾器', () => {
     test('子彈不應該擊中發射者', () => {
-      const mockTank = { id: 'tank1', constructor: { name: 'PlayerTank' } };
-      const mockBullet = {
-        active: true,
-        owner: mockTank,
-        isPlayerBullet: true
-      };
+      const player = makeTank('player');
+      const bullet = makeBullet(player);
 
-      // 模擬 bulletTankFilter 邏輯
-      const shouldCollide = mockBullet.active && mockBullet.owner !== mockTank;
-      expect(shouldCollide).toBe(false);
+      expect(collisionSystem.bulletTankFilter(bullet, player)).toBe(false);
     });
 
     test('玩家子彈應該能擊中敵人', () => {
-      const playerTank = { id: 'player', constructor: { name: 'PlayerTank' } };
-      const enemyTank = { id: 'enemy1', constructor: { name: 'EnemyTank' } };
-      const playerBullet = {
-        active: true,
-        owner: playerTank,
-        isPlayerBullet: true
-      };
+      const player = makeTank('player');
+      const enemy = makeTank('enemy');
+      const bullet = makeBullet(player);
 
-      // 模擬過濾邏輯
-      const isActive = playerBullet.active;
-      const notOwner = playerBullet.owner !== enemyTank;
-      const isEnemyBullet = !playerBullet.isPlayerBullet;
-      const isEnemyTank = enemyTank.constructor.name === 'EnemyTank';
-
-      // 玩家子彈不會被友軍傷害規則阻擋
-      const blockedByFriendlyFire = isEnemyBullet && isEnemyTank;
-      const shouldCollide = isActive && notOwner && !blockedByFriendlyFire;
-
-      expect(shouldCollide).toBe(true);
+      expect(collisionSystem.bulletTankFilter(bullet, enemy)).toBe(true);
     });
 
     test('敵人子彈不應該擊中其他敵人（友軍傷害防止）', () => {
-      const enemyTank1 = { id: 'enemy1', constructor: { name: 'EnemyTank' } };
-      const enemyTank2 = { id: 'enemy2', constructor: { name: 'EnemyTank' } };
-      const enemyBullet = {
-        active: true,
-        owner: enemyTank1,
-        isPlayerBullet: false
-      };
+      const enemy1 = makeTank('enemy');
+      const enemy2 = makeTank('enemy');
+      const bullet = makeBullet(enemy1);
 
-      // 模擬友軍傷害防止邏輯
-      const isActive = enemyBullet.active;
-      const notOwner = enemyBullet.owner !== enemyTank2;
-      const isEnemyBullet = !enemyBullet.isPlayerBullet;
-      const isEnemyTank = enemyTank2.constructor.name === 'EnemyTank';
-
-      // 敵人子彈 + 敵人坦克 = 被阻擋
-      const blockedByFriendlyFire = isEnemyBullet && isEnemyTank;
-      const shouldCollide = isActive && notOwner && !blockedByFriendlyFire;
-
-      expect(blockedByFriendlyFire).toBe(true);
-      expect(shouldCollide).toBe(false);
+      expect(collisionSystem.bulletTankFilter(bullet, enemy2)).toBe(false);
     });
 
     test('敵人子彈應該能擊中玩家', () => {
-      const enemyTank = { id: 'enemy', constructor: { name: 'EnemyTank' } };
-      const playerTank = { id: 'player', constructor: { name: 'PlayerTank' } };
-      const enemyBullet = {
-        active: true,
-        owner: enemyTank,
-        isPlayerBullet: false
-      };
+      const enemy = makeTank('enemy');
+      const player = makeTank('player');
+      const bullet = makeBullet(enemy);
 
-      // 模擬過濾邏輯
-      const isActive = enemyBullet.active;
-      const notOwner = enemyBullet.owner !== playerTank;
-      const isEnemyBullet = !enemyBullet.isPlayerBullet;
-      const isEnemyTank = playerTank.constructor.name === 'EnemyTank';
+      expect(collisionSystem.bulletTankFilter(bullet, player)).toBe(true);
+    });
 
-      // 玩家不是敵人，不會被友軍傷害規則阻擋
-      const blockedByFriendlyFire = isEnemyBullet && isEnemyTank;
-      const shouldCollide = isActive && notOwner && !blockedByFriendlyFire;
+    test('玩家子彈不應該擊中其他玩家坦克（雙人模式自傷防止）', () => {
+      const player1 = makeTank('player');
+      const player2 = makeTank('player');
+      const bullet = makeBullet(player1);
 
-      expect(blockedByFriendlyFire).toBe(false);
-      expect(shouldCollide).toBe(true);
+      expect(collisionSystem.bulletTankFilter(bullet, player2)).toBe(false);
     });
 
     test('非活躍子彈不應該碰撞', () => {
-      const mockTank = { id: 'tank', constructor: { name: 'EnemyTank' } };
-      const mockBullet = {
-        active: false,
-        owner: null,
-        isPlayerBullet: false
-      };
+      const enemy = makeTank('enemy');
+      const bullet = makeBullet(makeTank('player'), false);
 
-      const shouldCollide = mockBullet.active;
-      expect(shouldCollide).toBe(false);
+      expect(collisionSystem.bulletTankFilter(bullet, enemy)).toBe(false);
+    });
+
+    test('陣營判定不依賴 constructor.name（壓縮改名迴歸測試）', () => {
+      // 模擬 production 壓縮後類名被改成無意義字元的情況
+      class A {}
+      class B {}
+      const enemy1 = Object.assign(new A(), { faction: 'enemy' });
+      const enemy2 = Object.assign(new B(), { faction: 'enemy' });
+      const player = Object.assign(new A(), { faction: 'player' });
+
+      const enemyBullet = makeBullet(enemy1);
+      expect(collisionSystem.bulletTankFilter(enemyBullet, enemy2)).toBe(false);
+      expect(collisionSystem.bulletTankFilter(enemyBullet, player)).toBe(true);
     });
   });
 
   describe('不同類型敵方坦克之間的友軍傷害防止', () => {
-    test('BASIC 坦克的子彈不應該擊中 FAST 坦克', () => {
-      const basicTank = {
-        id: 'enemy-basic',
-        constructor: { name: 'EnemyTank' },
-        enemyType: 'BASIC'
-      };
-      const fastTank = {
-        id: 'enemy-fast',
-        constructor: { name: 'EnemyTank' },
-        enemyType: 'FAST'
-      };
-      const basicBullet = {
-        active: true,
-        owner: basicTank,
-        isPlayerBullet: false
-      };
+    const enemyTypes = ['BASIC', 'FAST', 'POWER', 'ARMOR'];
 
-      // 模擬完整的 bulletTankFilter 邏輯
-      const isActive = basicBullet.active;
-      const notOwner = basicBullet.owner !== fastTank;
-      const isPlayerBullet = basicBullet.isPlayerBullet;
-      const isPlayerTank = fastTank.constructor.name === 'PlayerTank';
-      const isEnemyTank = fastTank.constructor.name === 'EnemyTank';
+    test('任意類型組合的敵方子彈都不應該擊中敵方坦克', () => {
+      enemyTypes.forEach((shooterType) => {
+        enemyTypes.forEach((targetType) => {
+          const shooter = makeTank('enemy', { enemyType: shooterType });
+          const target = makeTank('enemy', { enemyType: targetType });
+          const bullet = makeBullet(shooter);
 
-      // 敵人子彈不能擊中敵人坦克
-      const blockedByFriendlyFire = !isPlayerBullet && isEnemyTank;
-      const shouldCollide = isActive && notOwner && !blockedByFriendlyFire;
-
-      expect(blockedByFriendlyFire).toBe(true);
-      expect(shouldCollide).toBe(false);
-    });
-
-    test('FAST 坦克的子彈不應該擊中 POWER 坦克', () => {
-      const fastTank = {
-        id: 'enemy-fast',
-        constructor: { name: 'EnemyTank' },
-        enemyType: 'FAST'
-      };
-      const powerTank = {
-        id: 'enemy-power',
-        constructor: { name: 'EnemyTank' },
-        enemyType: 'POWER'
-      };
-      const fastBullet = {
-        active: true,
-        owner: fastTank,
-        isPlayerBullet: false
-      };
-
-      // 模擬完整的 bulletTankFilter 邏輯
-      const isActive = fastBullet.active;
-      const notOwner = fastBullet.owner !== powerTank;
-      const isPlayerBullet = fastBullet.isPlayerBullet;
-      const isPlayerTank = powerTank.constructor.name === 'PlayerTank';
-      const isEnemyTank = powerTank.constructor.name === 'EnemyTank';
-
-      // 敵人子彈不能擊中敵人坦克
-      const blockedByFriendlyFire = !isPlayerBullet && isEnemyTank;
-      const shouldCollide = isActive && notOwner && !blockedByFriendlyFire;
-
-      expect(blockedByFriendlyFire).toBe(true);
-      expect(shouldCollide).toBe(false);
-    });
-
-    test('POWER 坦克的子彈不應該擊中 ARMOR 坦克', () => {
-      const powerTank = {
-        id: 'enemy-power',
-        constructor: { name: 'EnemyTank' },
-        enemyType: 'POWER'
-      };
-      const armorTank = {
-        id: 'enemy-armor',
-        constructor: { name: 'EnemyTank' },
-        enemyType: 'ARMOR'
-      };
-      const powerBullet = {
-        active: true,
-        owner: powerTank,
-        isPlayerBullet: false
-      };
-
-      // 模擬完整的 bulletTankFilter 邏輯
-      const isActive = powerBullet.active;
-      const notOwner = powerBullet.owner !== armorTank;
-      const isPlayerBullet = powerBullet.isPlayerBullet;
-      const isPlayerTank = armorTank.constructor.name === 'PlayerTank';
-      const isEnemyTank = armorTank.constructor.name === 'EnemyTank';
-
-      // 敵人子彈不能擊中敵人坦克
-      const blockedByFriendlyFire = !isPlayerBullet && isEnemyTank;
-      const shouldCollide = isActive && notOwner && !blockedByFriendlyFire;
-
-      expect(blockedByFriendlyFire).toBe(true);
-      expect(shouldCollide).toBe(false);
-    });
-
-    test('ARMOR 坦克的子彈不應該擊中 BASIC 坦克', () => {
-      const armorTank = {
-        id: 'enemy-armor',
-        constructor: { name: 'EnemyTank' },
-        enemyType: 'ARMOR'
-      };
-      const basicTank = {
-        id: 'enemy-basic',
-        constructor: { name: 'EnemyTank' },
-        enemyType: 'BASIC'
-      };
-      const armorBullet = {
-        active: true,
-        owner: armorTank,
-        isPlayerBullet: false
-      };
-
-      // 模擬完整的 bulletTankFilter 邏輯
-      const isActive = armorBullet.active;
-      const notOwner = armorBullet.owner !== basicTank;
-      const isPlayerBullet = armorBullet.isPlayerBullet;
-      const isPlayerTank = basicTank.constructor.name === 'PlayerTank';
-      const isEnemyTank = basicTank.constructor.name === 'EnemyTank';
-
-      // 敵人子彈不能擊中敵人坦克
-      const blockedByFriendlyFire = !isPlayerBullet && isEnemyTank;
-      const shouldCollide = isActive && notOwner && !blockedByFriendlyFire;
-
-      expect(blockedByFriendlyFire).toBe(true);
-      expect(shouldCollide).toBe(false);
-    });
-
-    test('同類型敵方坦克（BASIC）的子彈也不應該互相攻擊', () => {
-      const basicTank1 = {
-        id: 'enemy-basic-1',
-        constructor: { name: 'EnemyTank' },
-        enemyType: 'BASIC'
-      };
-      const basicTank2 = {
-        id: 'enemy-basic-2',
-        constructor: { name: 'EnemyTank' },
-        enemyType: 'BASIC'
-      };
-      const basicBullet = {
-        active: true,
-        owner: basicTank1,
-        isPlayerBullet: false
-      };
-
-      // 模擬完整的 bulletTankFilter 邏輯
-      const isActive = basicBullet.active;
-      const notOwner = basicBullet.owner !== basicTank2;
-      const isPlayerBullet = basicBullet.isPlayerBullet;
-      const isPlayerTank = basicTank2.constructor.name === 'PlayerTank';
-      const isEnemyTank = basicTank2.constructor.name === 'EnemyTank';
-
-      // 敵人子彈不能擊中敵人坦克（即使是同類型）
-      const blockedByFriendlyFire = !isPlayerBullet && isEnemyTank;
-      const shouldCollide = isActive && notOwner && !blockedByFriendlyFire;
-
-      expect(blockedByFriendlyFire).toBe(true);
-      expect(shouldCollide).toBe(false);
-    });
-
-    test('同類型敵方坦克（ARMOR）的子彈也不應該互相攻擊', () => {
-      const armorTank1 = {
-        id: 'enemy-armor-1',
-        constructor: { name: 'EnemyTank' },
-        enemyType: 'ARMOR'
-      };
-      const armorTank2 = {
-        id: 'enemy-armor-2',
-        constructor: { name: 'EnemyTank' },
-        enemyType: 'ARMOR'
-      };
-      const armorBullet = {
-        active: true,
-        owner: armorTank1,
-        isPlayerBullet: false
-      };
-
-      // 模擬完整的 bulletTankFilter 邏輯
-      const isActive = armorBullet.active;
-      const notOwner = armorBullet.owner !== armorTank2;
-      const isPlayerBullet = armorBullet.isPlayerBullet;
-      const isPlayerTank = armorTank2.constructor.name === 'PlayerTank';
-      const isEnemyTank = armorTank2.constructor.name === 'EnemyTank';
-
-      // 敵人子彈不能擊中敵人坦克（即使是同類型）
-      const blockedByFriendlyFire = !isPlayerBullet && isEnemyTank;
-      const shouldCollide = isActive && notOwner && !blockedByFriendlyFire;
-
-      expect(blockedByFriendlyFire).toBe(true);
-      expect(shouldCollide).toBe(false);
+          expect(collisionSystem.bulletTankFilter(bullet, target)).toBe(false);
+        });
+      });
     });
 
     test('確認玩家子彈仍然可以擊中所有類型的敵方坦克', () => {
-      const playerTank = {
-        id: 'player',
-        constructor: { name: 'PlayerTank' }
-      };
-      const enemyTypes = ['BASIC', 'FAST', 'POWER', 'ARMOR'];
+      const player = makeTank('player');
 
       enemyTypes.forEach((type) => {
-        const enemyTank = {
-          id: `enemy-${type}`,
-          constructor: { name: 'EnemyTank' },
-          enemyType: type
-        };
-        const playerBullet = {
-          active: true,
-          owner: playerTank,
-          isPlayerBullet: true
-        };
+        const enemy = makeTank('enemy', { enemyType: type });
+        const bullet = makeBullet(player);
 
-        // 模擬完整的 bulletTankFilter 邏輯
-        const isActive = playerBullet.active;
-        const notOwner = playerBullet.owner !== enemyTank;
-        const isPlayerBullet = playerBullet.isPlayerBullet;
-        const isPlayerTank = enemyTank.constructor.name === 'PlayerTank';
-        const isEnemyTank = enemyTank.constructor.name === 'EnemyTank';
-
-        // 玩家子彈可以擊中敵人
-        const blockedByFriendlyFire = !isPlayerBullet && isEnemyTank;
-        const blockedBySelfDamage = isPlayerBullet && isPlayerTank;
-        const shouldCollide = isActive && notOwner && !blockedByFriendlyFire && !blockedBySelfDamage;
-
-        expect(shouldCollide).toBe(true);
+        expect(collisionSystem.bulletTankFilter(bullet, enemy)).toBe(true);
       });
     });
 
     test('確認所有類型的敵方子彈仍然可以擊中玩家', () => {
-      const playerTank = {
-        id: 'player',
-        constructor: { name: 'PlayerTank' }
-      };
-      const enemyTypes = ['BASIC', 'FAST', 'POWER', 'ARMOR'];
+      const player = makeTank('player');
 
       enemyTypes.forEach((type) => {
-        const enemyTank = {
-          id: `enemy-${type}`,
-          constructor: { name: 'EnemyTank' },
-          enemyType: type
-        };
-        const enemyBullet = {
-          active: true,
-          owner: enemyTank,
-          isPlayerBullet: false
-        };
+        const enemy = makeTank('enemy', { enemyType: type });
+        const bullet = makeBullet(enemy);
 
-        // 模擬完整的 bulletTankFilter 邏輯
-        const isActive = enemyBullet.active;
-        const notOwner = enemyBullet.owner !== playerTank;
-        const isPlayerBullet = enemyBullet.isPlayerBullet;
-        const isPlayerTank = playerTank.constructor.name === 'PlayerTank';
-        const isEnemyTank = playerTank.constructor.name === 'EnemyTank';
-
-        // 敵人子彈可以擊中玩家
-        const blockedByFriendlyFire = !isPlayerBullet && isEnemyTank;
-        const blockedBySelfDamage = isPlayerBullet && isPlayerTank;
-        const shouldCollide = isActive && notOwner && !blockedByFriendlyFire && !blockedBySelfDamage;
-
-        expect(shouldCollide).toBe(true);
+        expect(collisionSystem.bulletTankFilter(bullet, player)).toBe(true);
       });
     });
   });
@@ -368,13 +136,7 @@ describe('CollisionSystem', () => {
       const mockBullet = { active: true, onHit: jest.fn() };
       const mockWall = { type: 'brick', takeDamage: jest.fn() };
 
-      // 模擬碰撞處理
-      if (mockBullet.active && mockWall.type !== 'water') {
-        if (mockWall.takeDamage) {
-          mockWall.takeDamage(1);
-        }
-        mockBullet.onHit();
-      }
+      collisionSystem.onBulletWallCollision(mockBullet, mockWall);
 
       expect(mockWall.takeDamage).toHaveBeenCalled();
       expect(mockBullet.onHit).toHaveBeenCalled();
@@ -384,28 +146,62 @@ describe('CollisionSystem', () => {
       const mockBullet = { active: true, onHit: jest.fn() };
       const mockWater = { type: 'water' };
 
-      // 模擬水域碰撞處理
-      if (mockBullet.active && mockWater.type !== 'water') {
-        mockBullet.onHit();
-      }
+      collisionSystem.onBulletWallCollision(mockBullet, mockWater);
 
       // 子彈不應該被摧毀
       expect(mockBullet.onHit).not.toHaveBeenCalled();
     });
 
     test('子彈應該在碰到鋼牆時被摧毀', () => {
-      const mockBullet = { active: true, onHit: jest.fn() };
+      const mockBullet = { active: true, damage: 1, onHit: jest.fn() };
       const mockWall = { type: 'steel', takeDamage: jest.fn() };
 
-      // 模擬碰撞處理
-      if (mockBullet.active && mockWall.type !== 'water') {
-        if (mockWall.takeDamage) {
-          mockWall.takeDamage(1);
-        }
-        mockBullet.onHit();
-      }
+      collisionSystem.onBulletWallCollision(mockBullet, mockWall);
 
+      expect(mockWall.takeDamage).toHaveBeenCalledWith(1);
       expect(mockBullet.onHit).toHaveBeenCalled();
+    });
+
+    test('非活躍子彈不應該觸發牆壁碰撞', () => {
+      const mockBullet = { active: false, onHit: jest.fn() };
+      const mockWall = { type: 'brick', takeDamage: jest.fn() };
+
+      collisionSystem.onBulletWallCollision(mockBullet, mockWall);
+
+      expect(mockWall.takeDamage).not.toHaveBeenCalled();
+      expect(mockBullet.onHit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onBulletBulletCollision - 子彈相互碰撞', () => {
+    test('玩家子彈和敵人子彈應該互相抵銷', () => {
+      const playerBullet = { active: true, isPlayerBullet: true, x: 0, y: 0, onHit: jest.fn() };
+      const enemyBullet = { active: true, isPlayerBullet: false, x: 0, y: 0, onHit: jest.fn() };
+
+      collisionSystem.onBulletBulletCollision(playerBullet, enemyBullet);
+
+      expect(playerBullet.onHit).toHaveBeenCalled();
+      expect(enemyBullet.onHit).toHaveBeenCalled();
+    });
+
+    test('兩顆敵人子彈不應該互相抵銷', () => {
+      const bullet1 = { active: true, isPlayerBullet: false, x: 0, y: 0, onHit: jest.fn() };
+      const bullet2 = { active: true, isPlayerBullet: false, x: 0, y: 0, onHit: jest.fn() };
+
+      collisionSystem.onBulletBulletCollision(bullet1, bullet2);
+
+      expect(bullet1.onHit).not.toHaveBeenCalled();
+      expect(bullet2.onHit).not.toHaveBeenCalled();
+    });
+
+    test('兩顆玩家子彈不應該互相抵銷', () => {
+      const bullet1 = { active: true, isPlayerBullet: true, x: 0, y: 0, onHit: jest.fn() };
+      const bullet2 = { active: true, isPlayerBullet: true, x: 0, y: 0, onHit: jest.fn() };
+
+      collisionSystem.onBulletBulletCollision(bullet1, bullet2);
+
+      expect(bullet1.onHit).not.toHaveBeenCalled();
+      expect(bullet2.onHit).not.toHaveBeenCalled();
     });
   });
 

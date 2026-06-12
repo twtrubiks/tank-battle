@@ -215,10 +215,10 @@ export default class CollisionSystem {
     // 子彈不能擊中發射者
     if (bullet.owner === tank) return false;
 
-    // 判斷子彈和坦克的陣營
+    // 判斷子彈和坦克的陣營（使用顯式 faction 欄位，constructor.name 在壓縮後不可靠）
     const isPlayerBullet = bullet.isPlayerBullet;
-    const isPlayerTank = tank.constructor.name === 'PlayerTank';
-    const isEnemyTank = tank.constructor.name === 'EnemyTank';
+    const isPlayerTank = tank.faction === 'player';
+    const isEnemyTank = tank.faction === 'enemy';
 
     // 敵人的子彈不能擊中敵人坦克（防止友軍傷害）
     if (!isPlayerBullet && isEnemyTank) {

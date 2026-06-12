@@ -52,7 +52,7 @@ export default class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.speed = speed;
     this.damage = damage;
     this.owner = owner;
-    this.isPlayerBullet = owner && owner.constructor.name === 'PlayerTank';
+    this.isPlayerBullet = !!owner && owner.faction === 'player';
 
     // 設定顏色
     const color = this.isPlayerBullet

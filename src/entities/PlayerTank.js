@@ -9,6 +9,8 @@ export default class PlayerTank extends Tank {
   constructor(scene, x, y) {
     super(scene, x, y, 'player_tank');
 
+    this.faction = 'player';
+
     // 玩家特有屬性
     this.lives = TANK_CONFIG.PLAYER_LIVES;
     this.score = 0;

@@ -27,6 +27,8 @@ export default class Tank extends Phaser.Physics.Arcade.Sprite {
     scene.physics.add.existing(this);
 
     // 基本屬性
+    // 陣營判定用顯式欄位，不可依賴 constructor.name（production 壓縮會改名）
+    this.faction = null;
     this.maxHealth = 1;
     this.health = 1;
     this.speed = TANK_CONFIG.PLAYER_SPEED;

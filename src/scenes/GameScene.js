@@ -1018,11 +1018,11 @@ export default class GameScene extends Phaser.Scene {
         );
 
         if (existingWall) {
-          // 保存磚牆信息以便恢復
+          // 保存原牆資訊以便恢復（type: 'brick' / 'steel'）
           this.savedBaseWalls.push({
             x: worldX,
             y: worldY,
-            type: existingWall.constructor.name // 'BrickWall' 或其他類型
+            type: existingWall.type
           });
           existingWall.destroy(); // 移除原本的牆
         }
@@ -1050,7 +1050,7 @@ export default class GameScene extends Phaser.Scene {
       if (this.savedBaseWalls) {
         this.savedBaseWalls.forEach(wallInfo => {
           // 根據類型恢復磚牆
-          if (wallInfo.type === 'BrickWall') {
+          if (wallInfo.type === 'brick') {
             const wall = new BrickWall(this, wallInfo.x, wallInfo.y);
             this.collisionSystem.addWall(wall);
           }
