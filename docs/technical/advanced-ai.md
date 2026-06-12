@@ -166,9 +166,11 @@ export const AI_CONFIG = {
 };
 ```
 
-## 移動控制架構：「目標方向」模式
+## 移動控制架構：「移動意圖」模式
 
-為了解決敵人坦克卡牆和抖動問題，AI 採用「目標方向」(Desired Direction) 模式：
+為了解決敵人坦克卡牆和抖動問題，AI 採用「移動意圖」(Move Intent) 模式：
+狀態機與事件處理只設定意圖（`desiredDirection` / `wantsToMove`），
+真正的 `move()` / `stop()` 只在 update 尾端的統一出口執行一次。
 
 ### 核心原理
 
@@ -178,20 +180,25 @@ stateMachine.update() → tank.move(direction1)
 onWallHit()          → tank.move(direction2)  // 衝突！
 checkIfStuck()       → tank.move(direction3)  // 衝突！
 
-// ✅ 新架構：設定目標方向 → 統一執行
-_updateDesiredDirection()  → this.desiredDirection = 'up'
-onWallHit()                → this.desiredDirection = 'left'
-checkIfStuck()             → this.desiredDirection = 'right'
+// ✅ 新架構：各處只設定移動意圖 → 統一執行
+狀態 update（尋路 / 對齊 / 保持距離） → _setMoveIntent('up') / wantsToMove = false
+onWallHit()                          → this.desiredDirection = 'left'
+_checkIfStuck()                      → this.desiredDirection = 'right'
 
 update() {
-  // 只在這裡呼叫一次 move()
-  this.tank.move(this.desiredDirection);
+  // 唯一的移動出口
+  if (this.wantsToMove) {
+    this.tank.move(this.desiredDirection);
+  } else {
+    this.tank.face(this.desiredDirection); // 停車仍轉砲口
+    this.tank.stop();
+  }
 }
 ```
 
 ### 方向變更冷卻
 
-為了避免快速切換方向造成抖動，所有方向變更都有 **500ms 冷卻時間**：
+為了避免快速切換方向造成抖動，事件類方向變更（撞牆、撞坦克）有 **500ms 冷卻時間**：
 
 ```javascript
 // 500ms 內不允許再次改變方向
@@ -200,28 +207,47 @@ if (currentTime - this.lastDirectionChange < 500) {
 }
 ```
 
+撞牆換向會先以地圖資料過濾可行走方向，避免在轉角選到另一面牆。
+
 ### 統一的 update 流程
 
 ```javascript
 update(delta) {
-  // 1. 根據狀態決定目標方向（不直接移動）
-  this._updateDesiredDirection(currentTime);
+  // 1. 視線檢測（節流，每 200ms）
+  this._updateLineOfSight();
 
-  // 2. 定期隨機換方向（增加不可預測性）
-  if (shouldRandomChange) {
-    this._setRandomDirection();
+  // 2. 定期評估狀態切換（每 2 秒）
+  this._evaluateState();
+
+  // 3. 狀態機決定移動意圖與射擊
+  //    patrol：尋路前往巡邏點，看到玩家就瞄準射擊
+  //    chase：A* 尋路追逐（可能包抄），預測射擊
+  //    attack：對齊射擊，理想距離內停車（wantsToMove = false）
+  //    retreat：反向脫離，邊退邊射
+  this.wantsToMove = true;
+  this.stateMachine.update(delta);
+
+  // 4. 檢測卡住（時間制；主動停車不計入）
+  this._checkIfStuck(delta);
+
+  // 5. 統一移動出口：唯一呼叫 move() / stop() 的地方
+  if (this.wantsToMove) {
+    this.tank.move(this.desiredDirection);
+    this.scene.applyCornerSlide(this.tank, this.desiredDirection); // 轉角滑動輔助
+  } else {
+    this.tank.face(this.desiredDirection);
+    this.tank.stop();
   }
-
-  // 3. 檢測卡住（設定方向，不直接移動）
-  this._checkIfStuck();
-
-  // 4. 統一移動：只在這裡呼叫一次 move()
-  this.tank.move(this.desiredDirection);
-
-  // 5. 嘗試射擊
-  this._tryShoot();
 }
 ```
+
+### 卡住檢測與分級脫困
+
+以固定時間窗口累計移動量，與「速度 × 時間」的預期值比較，
+不受畫面更新率影響：
+
+- **1 秒**未正常移動：換一個可行走方向
+- **2.5 秒**仍卡住：強制對齊到最近的格子中心，失敗則搬移到最近可行走格
 
 ### 滯後效應 (Hysteresis)
 
@@ -290,6 +316,8 @@ npm test -- --testPathPattern="(AIBlackboard|EnemyAI)"
 測試覆蓋：
 - AIBlackboard：19 個測試
 - EnemyAI 進階功能：26 個測試
+- EnemyAI 基礎行為（撞牆換向、卡住檢測、目標優先級）：11 個測試
+- EnemyAI 狀態機整合（攻擊保持距離、A* 追逐、視線射擊）：10 個測試
 
 ## 檔案結構
 
@@ -303,6 +331,8 @@ src/
 tests/
 └── unit/
     ├── EnemyAI.test.js
+    ├── EnemyAIBasics.test.js
+    ├── EnemyAIStateMachine.test.js
     └── AIBlackboard.test.js
 ```
 

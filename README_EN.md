@@ -28,7 +28,7 @@ A complete remake of the classic NES game "Battle City" (Tank 1990) using modern
 - 🤖 **Smart AI** - Advanced AI: predictive shooting, line of sight, flanking, team coordination
 - 🗺️ **Diverse Terrain** - 7 terrain types (Brick, Steel, Water, Ice, Forest, etc.)
 - 💾 **Save System** - Auto-save progress, scores, and statistics
-- ✅ **High Quality** - 206 unit tests, all passing
+- ✅ **High Quality** - 298 unit tests, all passing
 
 ## 🎮 Controls
 
@@ -77,7 +77,7 @@ tank-battle/
 │   ├── systems/           # Game systems (AI, collision, etc.)
 │   ├── managers/          # Managers (audio, save)
 │   └── utils/             # Utilities (constants, state machine, A* algorithm)
-├── tests/                 # Test files (206 tests)
+├── tests/                 # Test files (298 tests)
 ├── public/                # Static assets
 │   └── data/             # Level data (5 levels)
 └── docs/                  # Technical documentation
@@ -143,9 +143,9 @@ npm test -- --coverage
 ```
 
 Test Statistics:
-- Test Suites: 11
-- Test Cases: 206
-- Test Code: 3,347 lines
+- Test Suites: 22
+- Test Cases: 298
+- Test Code: 4,824 lines
 - Pass Rate: 100%
 
 ## 🎨 Code Quality
