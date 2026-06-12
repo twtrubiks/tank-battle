@@ -12,10 +12,13 @@ import { GAME_CONFIG, TILE_TYPES, DIRECTION_VECTORS } from './Constants';
 export default class GridMovement {
   /**
    * 將像素座標對齊到格子中心（X 軸）
+   * 坦克定位在格子中心（k * TILE_SIZE + TILE_SIZE / 2），
+   * 必須對齊到中心而非格線交點，與 gridToPixel 一致
    */
   static snapXToGrid(value) {
     const tileSize = GAME_CONFIG.TILE_SIZE;
-    return Math.round(value / tileSize) * tileSize;
+    const half = tileSize / 2;
+    return Math.round((value - half) / tileSize) * tileSize + half;
   }
 
   /**
@@ -23,8 +26,9 @@ export default class GridMovement {
    */
   static snapYToGrid(value) {
     const tileSize = GAME_CONFIG.TILE_SIZE;
+    const half = tileSize / 2;
     const offsetY = GAME_CONFIG.PLAY_OFFSET_Y;
-    return Math.round((value - offsetY) / tileSize) * tileSize + offsetY;
+    return Math.round((value - offsetY - half) / tileSize) * tileSize + half + offsetY;
   }
 
   /**
@@ -97,12 +101,13 @@ export default class GridMovement {
   static calculateCornerSlide(tank, direction, map) {
     if (!map) return null;
 
-    const tileSize = GAME_CONFIG.TILE_SIZE;
-    const alignment = this.checkAlignment(tank, tileSize * 0.45);
+    // 偏移量永遠不超過半格（snap 取最近中心），超過 2px 死區就往中心線修正
+    const deadZone = 2;
+    const alignment = this.checkAlignment(tank);
 
-    // 垂直移動時檢查水平對齊
+    // 垂直移動時修正水平偏移
     if (direction === 'up' || direction === 'down') {
-      if (!alignment.alignedX && Math.abs(alignment.offsetX) > 2) {
+      if (Math.abs(alignment.offsetX) > deadZone) {
         // 檢查滑動方向是否會導致碰撞
         const slideDir = alignment.offsetX > 0 ? -1 : 1;
         const targetX = alignment.nearestX;
@@ -118,9 +123,9 @@ export default class GridMovement {
       }
     }
 
-    // 水平移動時檢查垂直對齊
+    // 水平移動時修正垂直偏移
     if (direction === 'left' || direction === 'right') {
-      if (!alignment.alignedY && Math.abs(alignment.offsetY) > 2) {
+      if (Math.abs(alignment.offsetY) > deadZone) {
         const slideDir = alignment.offsetY > 0 ? -1 : 1;
         const targetY = alignment.nearestY;
 
