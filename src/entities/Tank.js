@@ -87,12 +87,26 @@ export default class Tank extends Phaser.Physics.Arcade.Sprite {
   move(direction) {
     if (this.isDestroyed || this.isFrozen) return;
 
-    this.direction = direction;
     const vector = DIRECTION_VECTORS[direction];
-    const angle = DIRECTION_ANGLES[direction];
 
     if (vector) {
+      this.face(direction);
       this.setVelocity(vector.x * this.speed, vector.y * this.speed);
+    }
+  }
+
+  /**
+   * 原地轉向（不移動）
+   * 停車射擊時仍需能轉動砲口對準目標
+   * @param {string} direction - 方向 ('up', 'down', 'left', 'right')
+   */
+  face(direction) {
+    if (this.isDestroyed || this.isFrozen) return;
+
+    const angle = DIRECTION_ANGLES[direction];
+
+    if (angle !== undefined) {
+      this.direction = direction;
       this.setAngle(angle);
     }
   }

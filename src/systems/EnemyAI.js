@@ -37,18 +37,23 @@ export default class EnemyAI {
     this.detectionRange = AI_CONFIG.DETECTION_RANGE;
     this.attackRange = AI_CONFIG.ATTACK_RANGE;
     this.retreatHealthPercent = AI_CONFIG.RETREAT_HEALTH_PERCENT;
+    this.attackIdealDistance = 100;  // 攻擊狀態理想距離
+    this.attackDistanceBuffer = 30;  // 距離緩衝區，減少頻繁切換
 
     // 時間控制
     this.lastStateChange = 0;
     this.stateChangeCooldown = AI_CONFIG.STATE_CHANGE_COOLDOWN;
     this.lastShot = 0;
 
-    // 移動相關 - 簡化為「目標方向」模式
+    // 移動意圖：狀態機設定，統一移動出口（update 尾端）執行
     this.desiredDirection = 'down'; // 目標方向
+    this.wantsToMove = true;        // 是否要移動（false = 停車射擊）
     this.lastDirectionChange = 0;
     this.directionChangeCooldown = 500; // 500ms 方向變更冷卻
     this.lastRandomDirectionChange = 0;
     this.randomDirectionInterval = 3000; // 每 3 秒有機會隨機換方向
+    this.lastShootDecision = 0;
+    this.shootDecisionInterval = 250; // 隨機射擊決策間隔（時間制，避免依賴幀率）
 
     // 卡住檢測（時間制：以移動量窗口評估，不受畫面更新率影響）
     this.stuckTime = 0;
@@ -186,17 +191,29 @@ export default class EnemyAI {
         this._assignNewPatrolTarget();
       },
 
-      update: (delta) => {
-        // 智能巡邏 vs 隨機巡邏
-        if (this.smartPatrolEnabled) {
-          this._executeSmartPatrol();
+      update: () => {
+        // 智能巡邏：以尋路前往巡邏點；無巡邏點則維持方向漫遊
+        if (this.smartPatrolEnabled && this.currentPatrolTarget) {
+          const distance = Phaser.Math.Distance.Between(
+            this.tank.x,
+            this.tank.y,
+            this.currentPatrolTarget.x,
+            this.currentPatrolTarget.y
+          );
+
+          if (distance < this.patrolPointReachDist) {
+            // 到達巡邏點，換下一個
+            this._assignNewPatrolTarget();
+          } else {
+            this._moveTowardsTarget(this.currentPatrolTarget);
+          }
         } else {
-          // 後備：隨機移動（每幀都嘗試移動）
-          this._executeRandomPatrol();
+          // 後備：維持目前方向前進（撞牆由 onWallHit 換向），偶爾隨機換向
+          this._maybeRandomTurn();
         }
 
-        // 隨機射擊（但如果看到玩家就瞄準射擊）
-        if (this.hasLineOfSight && this.scene.player) {
+        // 看得到玩家就瞄準射擊，否則隨機射擊
+        if (this.hasLineOfSight && this.scene.player && !this.scene.player.isDestroyed) {
           this._tryShootAtTarget(this.scene.player);
         } else {
           this._tryRandomShoot();
@@ -222,7 +239,7 @@ export default class EnemyAI {
         }
       },
 
-      update: (delta) => {
+      update: () => {
         const target = this._getCurrentTarget();
 
         if (!target) {
@@ -234,7 +251,7 @@ export default class EnemyAI {
         if (this.isFlankingMode && this.flankingTarget) {
           this._executeFlankingMove();
         } else {
-          // 朝向目標移動
+          // 朝向目標移動（A* 尋路）
           this._moveTowardsTarget(target);
         }
 
@@ -243,7 +260,6 @@ export default class EnemyAI {
       },
 
       exit: () => {
-        this.tank.stop();
         this.isFlankingMode = false;
         this.flankingTarget = null;
 
@@ -265,7 +281,7 @@ export default class EnemyAI {
         }
       },
 
-      update: (delta) => {
+      update: () => {
         const target = this._getCurrentTarget();
 
         if (!target) {
@@ -273,18 +289,33 @@ export default class EnemyAI {
           return;
         }
 
+        // 太近時先拉開距離（只對玩家；基地則直接靠近）
+        // 注意順序：拉開距離與對齊會互搶方向，太近時以脫身優先
+        const distance = Phaser.Math.Distance.Between(
+          this.tank.x,
+          this.tank.y,
+          target.x,
+          target.y
+        );
+        const tooClose = this.currentTarget === 'player' &&
+          distance < this.attackIdealDistance - this.attackDistanceBuffer;
+
+        if (tooClose) {
+          this._moveAwayFromTarget(target);
+          this._tryShootAtTargetWithPrediction(target);
+          return;
+        }
+
         // 對齊並射擊（使用預測）
         this._alignAndShootTargetWithPrediction(target);
 
-        // 保持距離（只對玩家保持距離，基地則直接靠近）
+        // 理想距離內停車射擊、太遠則逼近（只對玩家）
         if (this.currentTarget === 'player') {
           this._maintainDistance(target);
         }
       },
 
       exit: () => {
-        this.tank.stop();
-
         // 標記停止攻擊
         const blackboard = this._getBlackboard();
         if (blackboard) {
@@ -299,7 +330,7 @@ export default class EnemyAI {
         // 開始撤退
       },
 
-      update: (delta) => {
+      update: () => {
         const target = this._getCurrentTarget();
 
         if (!target) {
@@ -315,13 +346,14 @@ export default class EnemyAI {
       },
 
       exit: () => {
-        this.tank.stop();
       }
     });
   }
 
   /**
-   * 更新 AI（簡化版 - 統一移動控制）
+   * 更新 AI
+   * 狀態機決定「移動意圖」（desiredDirection / wantsToMove）與射擊，
+   * 統一移動出口只有這裡：避免多處呼叫 move() 互相覆蓋造成抖動
    * @param {number} delta - 時間差
    */
   update(delta) {
@@ -332,144 +364,63 @@ export default class EnemyAI {
     // 更新黑板位置
     this._updateBlackboardPosition();
 
+    // 視線檢測（節流）
+    if (this.losEnabled && currentTime - this.lastLosCheck > this.losCheckInterval) {
+      this._updateLineOfSight();
+      this.lastLosCheck = currentTime;
+    }
+
     // 定期評估狀態切換
     if (currentTime - this.lastStateChange > this.stateChangeCooldown) {
       this._evaluateState();
       this.lastStateChange = currentTime;
     }
 
-    // 根據狀態決定目標方向（但不直接移動）
-    this._updateDesiredDirection(currentTime);
+    // 狀態行為：設定移動意圖並處理射擊
+    this.wantsToMove = true;
+    this.stateMachine.update(delta);
 
-    // 定期隨機換方向（增加不可預測性）
+    // 檢測卡住（只在有移動意圖時評估）
+    this._checkIfStuck(delta);
+
+    // === 統一移動出口：只在這裡呼叫 move() / stop() ===
+    if (this.wantsToMove) {
+      this.tank.move(this.desiredDirection);
+
+      // 轉角滑動輔助：貼齊通道中心線，減少卡牆角
+      if (this.scene.applyCornerSlide) {
+        this.scene.applyCornerSlide(this.tank, this.desiredDirection);
+      }
+    } else {
+      // 停車射擊時仍要轉動砲口對準目標
+      this.tank.face(this.desiredDirection);
+      this.tank.stop();
+    }
+  }
+
+  /**
+   * 設定移動意圖（統一移動出口在 update() 中執行）
+   * @param {string} direction - 方向
+   * @private
+   */
+  _setMoveIntent(direction) {
+    this.desiredDirection = direction;
+    this.wantsToMove = true;
+  }
+
+  /**
+   * 偶爾隨機換方向（巡邏漫遊用，增加不可預測性）
+   * @private
+   */
+  _maybeRandomTurn() {
+    const currentTime = this.scene.time.now;
+
     if (currentTime - this.lastRandomDirectionChange > this.randomDirectionInterval) {
+      this.lastRandomDirectionChange = currentTime;
+
       if (Math.random() < 0.3) { // 30% 機率換方向
         this._setRandomDirection(currentTime);
       }
-      this.lastRandomDirectionChange = currentTime;
-    }
-
-    // 檢測卡住
-    this._checkIfStuck(delta);
-
-    // === 統一移動：只在這裡呼叫 move() ===
-    this.tank.move(this.desiredDirection);
-
-    // 嘗試射擊
-    this._tryShoot();
-  }
-
-  /**
-   * 根據當前狀態更新目標方向
-   * @private
-   */
-  _updateDesiredDirection(currentTime) {
-    const target = this._getCurrentTarget();
-
-    // 沒有目標，維持當前方向
-    if (!target) return;
-
-    // 方向變更冷卻中，不改變
-    if (currentTime - this.lastDirectionChange < this.directionChangeCooldown) {
-      return;
-    }
-
-    const dx = target.x - this.tank.x;
-    const dy = target.y - this.tank.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    // 攻擊狀態：在射程內就停止接近，專心射擊
-    if (this.stateMachine.currentState === 'attack' && distance < 150) {
-      // 對準目標方向
-      this._alignToTarget(target, currentTime);
-      return;
-    }
-
-    // 追逐狀態：朝目標移動
-    if (this.stateMachine.currentState === 'chase') {
-      this._setDirectionTowardsTarget(target, currentTime);
-      return;
-    }
-
-    // 撤退狀態：遠離目標
-    if (this.stateMachine.currentState === 'retreat') {
-      this._setDirectionAwayFromTarget(target, currentTime);
-      return;
-    }
-
-    // 巡邏狀態：維持當前方向（撞牆時由 onWallHit 處理）
-  }
-
-  /**
-   * 對準目標（用於攻擊狀態）
-   * @private
-   */
-  _alignToTarget(target, currentTime) {
-    const dx = target.x - this.tank.x;
-    const dy = target.y - this.tank.y;
-    const tolerance = 25;
-
-    let newDir = this.desiredDirection;
-
-    if (Math.abs(dx) < tolerance) {
-      // 垂直對齊
-      newDir = dy > 0 ? 'down' : 'up';
-    } else if (Math.abs(dy) < tolerance) {
-      // 水平對齊
-      newDir = dx > 0 ? 'right' : 'left';
-    }
-
-    if (newDir !== this.desiredDirection) {
-      this.desiredDirection = newDir;
-      this.lastDirectionChange = currentTime;
-    }
-  }
-
-  /**
-   * 設定朝向目標的方向
-   * @private
-   */
-  _setDirectionTowardsTarget(target, currentTime) {
-    const dx = target.x - this.tank.x;
-    const dy = target.y - this.tank.y;
-
-    // 選擇主要移動軸向（差異較大的方向）
-    let newDir;
-    if (Math.abs(dx) > Math.abs(dy) * 1.2) {
-      newDir = dx > 0 ? 'right' : 'left';
-    } else if (Math.abs(dy) > Math.abs(dx) * 1.2) {
-      newDir = dy > 0 ? 'down' : 'up';
-    } else {
-      // 差不多，維持當前方向
-      return;
-    }
-
-    if (newDir !== this.desiredDirection) {
-      this.desiredDirection = newDir;
-      this.lastDirectionChange = currentTime;
-    }
-  }
-
-  /**
-   * 設定遠離目標的方向
-   * @private
-   */
-  _setDirectionAwayFromTarget(target, currentTime) {
-    const dx = target.x - this.tank.x;
-    const dy = target.y - this.tank.y;
-
-    let newDir;
-    if (Math.abs(dx) > Math.abs(dy) * 1.2) {
-      newDir = dx > 0 ? 'left' : 'right'; // 反向
-    } else if (Math.abs(dy) > Math.abs(dx) * 1.2) {
-      newDir = dy > 0 ? 'up' : 'down'; // 反向
-    } else {
-      return;
-    }
-
-    if (newDir !== this.desiredDirection) {
-      this.desiredDirection = newDir;
-      this.lastDirectionChange = currentTime;
     }
   }
 
@@ -482,40 +433,6 @@ export default class EnemyAI {
     const otherDirs = directions.filter(d => d !== this.desiredDirection);
     this.desiredDirection = Phaser.Utils.Array.GetRandom(otherDirs);
     this.lastDirectionChange = currentTime;
-  }
-
-  /**
-   * 嘗試射擊
-   * @private
-   */
-  _tryShoot() {
-    const target = this._getCurrentTarget();
-    if (!target) {
-      // 沒目標時隨機射擊
-      if (Math.random() < 0.02) {
-        this.tank.shoot();
-      }
-      return;
-    }
-
-    // 有目標時檢查是否對準
-    const dx = target.x - this.tank.x;
-    const dy = target.y - this.tank.y;
-    const tolerance = 30;
-    const dir = this.tank.direction;
-
-    let aligned = false;
-    if (dir === 'up' && dy < 0 && Math.abs(dx) < tolerance) aligned = true;
-    if (dir === 'down' && dy > 0 && Math.abs(dx) < tolerance) aligned = true;
-    if (dir === 'left' && dx < 0 && Math.abs(dy) < tolerance) aligned = true;
-    if (dir === 'right' && dx > 0 && Math.abs(dy) < tolerance) aligned = true;
-
-    if (aligned) {
-      this.tank.shoot();
-    } else if (Math.random() < 0.05) {
-      // 未對準時也有小機率射擊
-      this.tank.shoot();
-    }
   }
 
   /**
@@ -725,7 +642,6 @@ export default class EnemyAI {
     const deadZone = 8;
     if (Math.abs(dx) < deadZone && Math.abs(dy) < deadZone) {
       // 已經很接近目標點，維持當前方向
-      this.tank.move(this.tank.direction);
       return;
     }
 
@@ -738,8 +654,8 @@ export default class EnemyAI {
     } else if (Math.abs(dy) > Math.abs(dx) * axisThreshold) {
       newDirection = dy > 0 ? 'down' : 'up';
     } else {
-      // dx 和 dy 相近，優先維持當前方向
-      const currentDir = this.tank.direction;
+      // dx 和 dy 相近，優先維持當前軸向
+      const currentDir = this.desiredDirection;
       if ((currentDir === 'left' || currentDir === 'right') && Math.abs(dx) > deadZone) {
         newDirection = dx > 0 ? 'right' : 'left';
       } else if ((currentDir === 'up' || currentDir === 'down') && Math.abs(dy) > deadZone) {
@@ -750,7 +666,7 @@ export default class EnemyAI {
       }
     }
 
-    this.tank.move(newDirection);
+    this._setMoveIntent(newDirection);
   }
 
   /**
@@ -765,16 +681,13 @@ export default class EnemyAI {
     // 死區：偏移量很小時維持當前方向
     const deadZone = 8;
     if (Math.abs(dx) < deadZone && Math.abs(dy) < deadZone) {
-      if (this._isDirectionSafe(this.tank.direction)) {
-        this.tank.move(this.tank.direction);
-      }
       return;
     }
 
     // 計算首選方向（加入滯後效應防止抖動）
     let primaryDir, secondaryDir;
     const axisThreshold = 1.5;
-    const currentDir = this.tank.direction;
+    const currentDir = this.desiredDirection;
 
     if (Math.abs(dx) > Math.abs(dy) * axisThreshold) {
       primaryDir = dx > 0 ? 'right' : 'left';
@@ -795,20 +708,20 @@ export default class EnemyAI {
 
     // 檢查首選方向是否可行走
     if (this._isDirectionSafe(primaryDir)) {
-      this.tank.move(primaryDir);
+      this._setMoveIntent(primaryDir);
       return;
     }
 
     // 首選方向被阻擋，嘗試次要方向
     if (this._isDirectionSafe(secondaryDir)) {
-      this.tank.move(secondaryDir);
+      this._setMoveIntent(secondaryDir);
       return;
     }
 
     // 兩個方向都被阻擋，使用智能方向選擇
     const safeDir = this._chooseSafestDirection();
     if (safeDir) {
-      this.tank.move(safeDir);
+      this._setMoveIntent(safeDir);
     }
   }
 
@@ -859,7 +772,6 @@ export default class EnemyAI {
 
     // 方向穩定：200ms 內不換方向
     if (currentTime - this.lastDirectionChange < 200) {
-      this.tank.move(this.tank.direction);
       return;
     }
 
@@ -876,43 +788,25 @@ export default class EnemyAI {
       newDir = dy > 0 ? 'up' : 'down';
     } else {
       // dx 和 dy 相近，維持當前方向
-      this.tank.move(this.tank.direction);
       return;
     }
 
-    if (newDir !== this.tank.direction) {
+    // 反向方向被牆擋住時改走可行走方向，避免倒退撞牆
+    if (!this._isDirectionSafe(newDir)) {
+      const safeDir = this._chooseSafestDirection();
+      if (safeDir) {
+        newDir = safeDir;
+      }
+    }
+
+    if (newDir !== this.desiredDirection) {
       this.lastDirectionChange = currentTime;
     }
-    this.tank.move(newDir);
+    this._setMoveIntent(newDir);
   }
 
   /**
-   * 對齊目標並射擊
-   * @param {Object} target - 目標對象
-   * @private
-   */
-  _alignAndShootTarget(target) {
-    const tolerance = 10;
-
-    // 檢查是否在同一條線上
-    if (Math.abs(this.tank.x - target.x) < tolerance) {
-      // 垂直對齊
-      this.tank.move(this.tank.y < target.y ? 'down' : 'up');
-      this._tryShootAtTarget(target);
-    } else if (Math.abs(this.tank.y - target.y) < tolerance) {
-      // 水平對齊
-      this.tank.move(this.tank.x < target.x ? 'right' : 'left');
-      this._tryShootAtTarget(target);
-    } else {
-      // 未對齊，先移動對齊
-      this._moveTowardsTarget(target);
-      // 即使未完全對齊也嘗試射擊（避免被地形阻擋時完全不攻擊）
-      this._tryShootAtTarget(target);
-    }
-  }
-
-  /**
-   * 保持與目標的距離
+   * 保持與目標的距離（太近的情況由 attack 狀態先行處理）
    * @param {Object} target - 目標對象
    * @private
    */
@@ -924,17 +818,12 @@ export default class EnemyAI {
       target.y
     );
 
-    const idealDistance = 100;
-    const buffer = 30; // 增加緩衝區，減少頻繁切換
-
-    if (distance < idealDistance - buffer) {
-      this._moveAwayFromTarget(target);
-    } else if (distance > idealDistance + buffer + 50) {
-      // 距離太遠時，維持當前方向移動（不用複雜的路徑計算）
-      this.tank.move(this.tank.direction);
+    if (distance > this.attackIdealDistance + this.attackDistanceBuffer + 50) {
+      // 太遠：維持當前方向逼近（不用複雜的路徑計算）
+      this.wantsToMove = true;
     } else {
       // 在理想範圍內，停止移動專心射擊
-      this.tank.stop();
+      this.wantsToMove = false;
     }
   }
 
@@ -973,6 +862,7 @@ export default class EnemyAI {
 
   /**
    * 隨機射擊（巡邏時）
+   * 決策以固定時間間隔進行，不隨畫面更新率改變
    * @private
    */
   _tryRandomShoot() {
@@ -982,8 +872,13 @@ export default class EnemyAI {
       return;
     }
 
-    // 10% 機率射擊
-    if (Math.random() < 0.1) {
+    if (currentTime - this.lastShootDecision < this.shootDecisionInterval) {
+      return;
+    }
+    this.lastShootDecision = currentTime;
+
+    // 每次決策 25% 機率射擊
+    if (Math.random() < 0.25) {
       this.tank.shoot();
       this.lastShot = currentTime;
     }
@@ -1097,6 +992,17 @@ export default class EnemyAI {
    * @private
    */
   _checkIfStuck(delta) {
+    // 主動停車（攻擊狀態保持距離）不是卡住
+    if (!this.wantsToMove) {
+      this.stuckTime = 0;
+      this.stuckTurned = false;
+      this.stuckWindowTime = 0;
+      this.stuckWindowDistance = 0;
+      this.lastPosition.x = this.tank.x;
+      this.lastPosition.y = this.tank.y;
+      return;
+    }
+
     // 累計本窗口的移動量
     const distance = Phaser.Math.Distance.Between(
       this.tank.x,
@@ -1207,32 +1113,6 @@ export default class EnemyAI {
   }
 
   /**
-   * 嘗試邊緣滑動（處理坦克只碰到牆壁一點點的情況）
-   * 使用 GridMovement 輔助類進行精確的格子對齊
-   * @returns {boolean} 是否成功應用滑動
-   * @private
-   */
-  _tryEdgeSliding() {
-    const map = this.scene.levelData?.map;
-    const direction = this.tank.direction;
-
-    // 使用 GridMovement 計算角落滑動
-    const slide = GridMovement.calculateCornerSlide(this.tank, direction, map);
-
-    if (slide) {
-      // 應用滑動修正
-      if (slide.axis === 'x') {
-        this.tank.x += slide.amount;
-      } else if (slide.axis === 'y') {
-        this.tank.y += slide.amount;
-      }
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
    * 強制將坦克對齊到格子（用於嚴重卡住時）
    * @returns {boolean} 是否成功對齊
    * @private
@@ -1331,7 +1211,10 @@ export default class EnemyAI {
     let x = x0;
     let y = y0;
 
-    while (true) {
+    // 步數上限 = 棋盤距離，保證迴圈有界
+    const maxSteps = dx + dy + 1;
+
+    for (let step = 0; step < maxSteps; step++) {
       // 檢查當前格子是否阻擋視線
       if (y >= 0 && y < map.length && x >= 0 && x < map[0].length) {
         const tile = map[y][x];
@@ -1356,31 +1239,6 @@ export default class EnemyAI {
     }
 
     return true;
-  }
-
-  /**
-   * 檢查是否能直接射擊到目標（考慮方向對齊和視線）
-   * @param {Object} target - 目標
-   * @returns {boolean}
-   */
-  _canDirectlyShoot(target) {
-    if (!this.hasLineOfSight) return false;
-
-    const tolerance = 30;
-    const dir = this.tank.direction;
-
-    // 檢查方向對齊
-    if (dir === 'up' && this.tank.y > target.y) {
-      return Math.abs(this.tank.x - target.x) < tolerance;
-    } else if (dir === 'down' && this.tank.y < target.y) {
-      return Math.abs(this.tank.x - target.x) < tolerance;
-    } else if (dir === 'left' && this.tank.x > target.x) {
-      return Math.abs(this.tank.y - target.y) < tolerance;
-    } else if (dir === 'right' && this.tank.x < target.x) {
-      return Math.abs(this.tank.y - target.y) < tolerance;
-    }
-
-    return false;
   }
 
   // ==========================================
@@ -1457,7 +1315,6 @@ export default class EnemyAI {
 
     // 方向穩定：200ms 內不換方向
     if (currentTime - this.lastDirectionChange < 200) {
-      this.tank.move(this.tank.direction);
       this._tryShootAtTargetWithPrediction(target);
       return;
     }
@@ -1470,26 +1327,23 @@ export default class EnemyAI {
 
     // 檢查是否在同一條線上（使用預測位置）
     if (Math.abs(dx) < tolerance) {
-      // 垂直對齊，朝目標方向移動
+      // 垂直對齊，面向目標
       const newDir = dy > 0 ? 'down' : 'up';
-      if (newDir !== this.tank.direction) {
+      if (newDir !== this.desiredDirection) {
         this.lastDirectionChange = currentTime;
       }
-      this.tank.move(newDir);
-      this._tryShootAtTargetWithPrediction(target);
+      this._setMoveIntent(newDir);
     } else if (Math.abs(dy) < tolerance) {
       // 水平對齊
       const newDir = dx > 0 ? 'right' : 'left';
-      if (newDir !== this.tank.direction) {
+      if (newDir !== this.desiredDirection) {
         this.lastDirectionChange = currentTime;
       }
-      this.tank.move(newDir);
-      this._tryShootAtTargetWithPrediction(target);
-    } else {
-      // 未對齊，維持當前方向繼續移動
-      this.tank.move(this.tank.direction);
-      this._tryShootAtTargetWithPrediction(target);
+      this._setMoveIntent(newDir);
     }
+    // 未對齊時維持當前移動意圖，邊走邊嘗試射擊
+
+    this._tryShootAtTargetWithPrediction(target);
   }
 
   // ==========================================
@@ -1618,24 +1472,6 @@ export default class EnemyAI {
     return pos;
   }
 
-  /**
-   * 執行智能巡邏
-   * @private
-   */
-  _executeSmartPatrol() {
-    // 簡化：直接朝當前方向移動，撞牆時由 onWallHit() 處理換向
-    this.tank.move(this.tank.direction);
-  }
-
-  /**
-   * 執行隨機巡邏（後備方案）
-   * @private
-   */
-  _executeRandomPatrol() {
-    // 簡單策略：持續朝當前方向移動，不每幀重新計算
-    this.tank.move(this.tank.direction);
-  }
-
   // ==========================================
   // 進階 AI 功能：包抄戰術
   // ==========================================
@@ -1719,80 +1555,6 @@ export default class EnemyAI {
     const player = this.scene.player;
     if (player && !player.isDestroyed) {
       this._tryShootAtTargetWithPrediction(player);
-    }
-  }
-
-  // ==========================================
-  // 威脅評估
-  // ==========================================
-
-  /**
-   * 計算對當前敵人的威脅評估分數
-   * @returns {number} 威脅分數 (0-100)
-   */
-  calculateThreatScore() {
-    const player = this.scene.player;
-    if (!player || player.isDestroyed) return 0;
-
-    let score = 50; // 基礎分數
-
-    // 距離因素
-    const distance = Phaser.Math.Distance.Between(
-      this.tank.x,
-      this.tank.y,
-      player.x,
-      player.y
-    );
-
-    // 越近威脅越高
-    if (distance < 100) score += 30;
-    else if (distance < 200) score += 20;
-    else if (distance < 300) score += 10;
-
-    // 玩家是否面向我
-    if (this._isPlayerFacingMe(player)) {
-      score += 20;
-    }
-
-    // 我的血量
-    const healthPercent = this.tank.health / this.tank.maxHealth;
-    if (healthPercent <= 0.25) score += 30;
-    else if (healthPercent <= 0.5) score += 15;
-
-    // 視線威脅
-    if (this.hasLineOfSight) {
-      score += 15;
-    }
-
-    return Math.min(100, Math.max(0, score));
-  }
-
-  /**
-   * 檢查玩家是否面向這個敵人
-   * @param {Object} player - 玩家
-   * @returns {boolean}
-   * @private
-   */
-  _isPlayerFacingMe(player) {
-    if (!player || !player.direction) return false;
-
-    const dx = this.tank.x - player.x;
-    const dy = this.tank.y - player.y;
-    const dir = player.direction;
-
-    const tolerance = 50;
-
-    switch (dir) {
-    case 'up':
-      return dy < 0 && Math.abs(dx) < tolerance;
-    case 'down':
-      return dy > 0 && Math.abs(dx) < tolerance;
-    case 'left':
-      return dx < 0 && Math.abs(dy) < tolerance;
-    case 'right':
-      return dx > 0 && Math.abs(dy) < tolerance;
-    default:
-      return false;
     }
   }
 
