@@ -224,14 +224,10 @@ export const AI_CONFIG = {
   RETREAT_HEALTH_PERCENT: 0.3,
   STATE_CHANGE_COOLDOWN: 2000,
 
-  // 分級卡住檢測閾值
-  STUCK_DISTANCE: 5,
-  STUCK_THRESHOLD_LIGHT: 30,   // 輕微卡住：0.5 秒（小幅調整）
-  STUCK_THRESHOLD_MEDIUM: 60,  // 中度卡住：1.0 秒（改變方向）
-  STUCK_THRESHOLD_SEVERE: 90,  // 嚴重卡住：1.5 秒（隨機逃脫）
-
-  // 速度檢測（如果速度為 0 但應該在移動，視為卡住）
-  STUCK_VELOCITY_THRESHOLD: 5,  // 速度低於此值視為停止
+  // 卡住檢測（時間制，不隨畫面更新率改變）
+  STUCK_CHECK_INTERVAL: 250,   // 移動量評估窗口（ms）
+  STUCK_TURN_TIME: 1000,       // 中度卡住：換一個可行走方向
+  STUCK_ESCAPE_TIME: 2500,     // 嚴重卡住：強制對齊格子 / 脫困搬移
 
   // === 進階 AI 功能配置 ===
 

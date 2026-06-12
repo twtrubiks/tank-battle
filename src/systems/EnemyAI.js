@@ -50,7 +50,11 @@ export default class EnemyAI {
     this.lastRandomDirectionChange = 0;
     this.randomDirectionInterval = 3000; // 每 3 秒有機會隨機換方向
 
-    this.stuckCounter = 0;
+    // 卡住檢測（時間制：以移動量窗口評估，不受畫面更新率影響）
+    this.stuckTime = 0;
+    this.stuckWindowTime = 0;
+    this.stuckWindowDistance = 0;
+    this.stuckTurned = false;
     this.lastPosition = { x: tank.x, y: tank.y };
 
     // A* 尋路相關
@@ -65,8 +69,9 @@ export default class EnemyAI {
     this.pathUpdateIntervalPatrol = 1000; // 巡邏狀態較少更新
 
     // 目標選擇（經典模式）
+    // 注意：要用 enemyType（'BASIC' 等），tank.type 是 Phaser GameObject 內建欄位（'Sprite'）
     this.currentTarget = null; // 'player' 或 'base'
-    this.targetPriority = this._determineTargetPriority(tank.type);
+    this.targetPriority = this._determineTargetPriority(tank.enemyType);
 
     // === 進階 AI 功能 ===
 
@@ -345,7 +350,7 @@ export default class EnemyAI {
     }
 
     // 檢測卡住
-    this._checkIfStuck();
+    this._checkIfStuck(delta);
 
     // === 統一移動：只在這裡呼叫 move() ===
     this.tank.move(this.desiredDirection);
@@ -1085,79 +1090,85 @@ export default class EnemyAI {
   }
 
   /**
-   * 檢查當前位置是否接近之前卡住的位置
-   * @returns {boolean} 是否在卡住位置附近
+   * 檢測是否卡住（時間制）
+   * 以固定時間窗口累計移動量，與預期移動距離比較，
+   * 不受畫面更新率影響（幀數計數在高刷新率螢幕會誤判）
+   * @param {number} delta - 距離上一幀的時間差（ms）
    * @private
    */
-  _isNearStuckPosition() {
-    for (const stuckPos of this.stuckPositions) {
-      const distance = Phaser.Math.Distance.Between(
-        this.tank.x,
-        this.tank.y,
-        stuckPos.x,
-        stuckPos.y
-      );
-      if (distance < this.stuckPositionRadius) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * 記錄卡住位置
-   * @private
-   */
-  _recordStuckPosition() {
-    // 添加到記憶列表
-    this.stuckPositions.push({ x: this.tank.x, y: this.tank.y });
-
-    // 保持列表大小
-    if (this.stuckPositions.length > this.stuckPositionMemorySize) {
-      this.stuckPositions.shift(); // 移除最舊的記錄
-    }
-  }
-
-  /**
-   * 檢測是否卡住（簡化版）
-   * @private
-   */
-  _checkIfStuck() {
-    // 計算位移距離
+  _checkIfStuck(delta) {
+    // 累計本窗口的移動量
     const distance = Phaser.Math.Distance.Between(
       this.tank.x,
       this.tank.y,
       this.lastPosition.x,
       this.lastPosition.y
     );
-
-    // 如果移動距離很小，增加卡住計數
-    if (distance < 1) {
-      this.stuckCounter++;
-
-      // 卡住超過 60 幀（約 1 秒），換方向
-      if (this.stuckCounter >= 60) {
-        const allDirections = ['up', 'down', 'left', 'right'];
-        const validDirections = allDirections.filter(dir => dir !== this.desiredDirection);
-        // 只設定目標方向，不直接呼叫 move()
-        this.desiredDirection = Phaser.Utils.Array.GetRandom(validDirections);
-        this.lastDirectionChange = this.scene.time.now;
-        this.stuckCounter = 0;
-      }
-    } else {
-      // 正常移動，重置計數器
-      this.stuckCounter = 0;
-    }
-
-    // 更新上次位置
+    this.stuckWindowTime += delta;
+    this.stuckWindowDistance += distance;
     this.lastPosition.x = this.tank.x;
     this.lastPosition.y = this.tank.y;
+
+    // 窗口未滿，繼續累計
+    if (this.stuckWindowTime < AI_CONFIG.STUCK_CHECK_INTERVAL) {
+      return;
+    }
+
+    // 評估：實際移動量遠低於預期（速度 × 時間）即視為卡住
+    const expectedDistance = this.tank.speed * (this.stuckWindowTime / 1000);
+    const isStuck = this.stuckWindowDistance < expectedDistance * 0.25;
+
+    if (isStuck) {
+      this.stuckTime += this.stuckWindowTime;
+
+      if (this.stuckTime >= AI_CONFIG.STUCK_ESCAPE_TIME) {
+        // 嚴重卡住：強制對齊格子中心，仍失敗則搬移到最近可行走格
+        if (!this._forceGridAlign()) {
+          this._escapeToWalkablePosition();
+        }
+        this.currentPath = null;
+        this.stuckTime = 0;
+        this.stuckTurned = false;
+      } else if (this.stuckTime >= AI_CONFIG.STUCK_TURN_TIME && !this.stuckTurned) {
+        // 中度卡住：換一個可行走的方向
+        this.desiredDirection = this._pickEscapeDirection();
+        this.lastDirectionChange = this.scene.time.now;
+        this.currentPath = null;
+        this.stuckTurned = true;
+      }
+    } else {
+      this.stuckTime = 0;
+      this.stuckTurned = false;
+    }
+
+    // 重置評估窗口
+    this.stuckWindowTime = 0;
+    this.stuckWindowDistance = 0;
+  }
+
+  /**
+   * 挑選脫困方向：優先可行走方向（排除目前方向），否則任一其他方向
+   * @returns {string} 方向
+   * @private
+   */
+  _pickEscapeDirection() {
+    const map = this.scene.levelData?.map;
+    const walkable = GridMovement.getAvailableDirections(this.tank, map)
+      .filter(dir => dir !== this.desiredDirection);
+
+    if (walkable.length > 0) {
+      return Phaser.Utils.Array.GetRandom(walkable);
+    }
+
+    const others = ['up', 'down', 'left', 'right'].filter(dir => dir !== this.desiredDirection);
+    return Phaser.Utils.Array.GetRandom(others);
   }
 
   // ========== 事件處理 ==========
 
   /**
-   * 碰到牆壁時的處理（簡化版）
+   * 碰到牆壁時的處理
+   * 換向前先檢查可行走性，避免在轉角選到另一面牆後被冷卻鎖住
    */
   onWallHit() {
     const currentTime = this.scene.time.now;
@@ -1167,19 +1178,32 @@ export default class EnemyAI {
       return;
     }
 
-    // 選擇垂直於當前方向的隨機方向
+    const map = this.scene.levelData?.map;
     const currentDir = this.desiredDirection;
-    let newDirections;
+    const perpendicular = (currentDir === 'up' || currentDir === 'down')
+      ? ['left', 'right']
+      : ['up', 'down'];
 
-    if (currentDir === 'up' || currentDir === 'down') {
-      newDirections = ['left', 'right'];
-    } else {
-      newDirections = ['up', 'down'];
+    // 優先：可行走的垂直方向；其次：任何可行走方向（排除原方向）；最後：隨機垂直方向
+    let candidates = perpendicular.filter(dir =>
+      GridMovement.canMoveInDirection(this.tank, dir, map)
+    );
+
+    if (candidates.length === 0) {
+      candidates = GridMovement.getAvailableDirections(this.tank, map)
+        .filter(dir => dir !== currentDir);
+    }
+
+    if (candidates.length === 0) {
+      candidates = perpendicular;
     }
 
     // 只設定目標方向，不直接呼叫 move()
-    this.desiredDirection = Phaser.Utils.Array.GetRandom(newDirections);
+    this.desiredDirection = Phaser.Utils.Array.GetRandom(candidates);
     this.lastDirectionChange = currentTime;
+
+    // 撞牆代表目前路徑已不可信，下次更新時重新計算
+    this.currentPath = null;
   }
 
   /**
@@ -1239,15 +1263,19 @@ export default class EnemyAI {
 
   /**
    * 碰到其他坦克時的處理
+   * 必須改 desiredDirection 才有效：直接呼叫 move() 會在同幀稍後
+   * 被統一移動出口以 desiredDirection 覆蓋
    */
   onTankHit() {
-    const currentDirection = this.tank.direction;
-    const availableDirections = ['up', 'down', 'left', 'right'].filter(
-      dir => dir !== currentDirection
-    );
+    const currentTime = this.scene.time.now;
 
-    const newDirection = Phaser.Utils.Array.GetRandom(availableDirections);
-    this.tank.move(newDirection);
+    if (currentTime - this.lastDirectionChange < this.directionChangeCooldown) {
+      return;
+    }
+
+    this.desiredDirection = this._pickEscapeDirection();
+    this.lastDirectionChange = currentTime;
+    this.currentPath = null;
   }
 
   // ==========================================
