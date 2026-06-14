@@ -24,6 +24,16 @@ export const TANK_CONFIG = {
   PLAYER_MAX_BULLETS: 2,
   PLAYER_LIVES: 3,
 
+  // 玩家 grid-lock 移動手感
+  // 轉向容差：行進軸距格子中心 <= 此值才允許轉彎（turn buffering）。
+  //   連續區間：0=永遠等到正中心才轉（最乾淨但最黏）、16=完全不等立刻轉
+  //   （零延遲但轉角斜滑最多）。12 為實測平衡點：延遲約 2 幀近乎無感，
+  //   轉角斜滑也夠輕（8 偏黏、14 偏滑）
+  // 車道吸附速率：垂直軸每幀往車道中心收斂的像素上限（轉彎後殘留偏移用）。
+  //   越大轉彎後越「啪」一下吸到車道（不飄）、越小越軟越像漂移；不影響直行、不增延遲
+  GRID_TURN_TOLERANCE: 12,
+  GRID_LANE_GLIDE: 6,
+
   // 敵人坦克速度
   ENEMY_SPEED_SLOW: 60,
   ENEMY_SPEED_NORMAL: 80,

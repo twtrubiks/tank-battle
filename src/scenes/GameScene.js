@@ -4,7 +4,7 @@
  */
 
 import Phaser from 'phaser';
-import { SCENES, GAME_CONFIG, ENEMY_TYPES, EVENTS, DEPTHS, TILE_TYPES, POWERUP_TYPES } from '../utils/Constants';
+import { SCENES, GAME_CONFIG, TANK_CONFIG, ENEMY_TYPES, EVENTS, DEPTHS, TILE_TYPES, POWERUP_TYPES } from '../utils/Constants';
 import {
   PALETTE,
   HEX,
@@ -1505,27 +1505,68 @@ export default class GameScene extends Phaser.Scene {
   }
 
   handlePlayerInput() {
-    let moveDirection = null;
+    let inputDirection = null;
 
     if (this.cursors.up.isDown) {
-      moveDirection = 'up';
+      inputDirection = 'up';
     } else if (this.cursors.down.isDown) {
-      moveDirection = 'down';
+      inputDirection = 'down';
     } else if (this.cursors.left.isDown) {
-      moveDirection = 'left';
+      inputDirection = 'left';
     } else if (this.cursors.right.isDown) {
-      moveDirection = 'right';
+      inputDirection = 'right';
     }
 
-    if (moveDirection) {
-      this.player.move(moveDirection);
-      this.applyCornerSlide(this.player, moveDirection);
+    if (inputDirection) {
+      this.applyPlayerGridLock(inputDirection);
     } else {
       this.player.stop();
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.fireKey)) {
       this.player.shoot();
+    }
+  }
+
+  /**
+   * 玩家 grid-lock 移動：垂直軸鎖在車道中心，轉彎需對齊路口（turn buffering）
+   *
+   * 取代舊的「速度 + 轉角吸附」混合模型：直行時零修正（消除側拉違和），
+   * 轉彎時走到路口才轉並把殘留偏移精準收斂到車道中心，手感乾淨可預測。
+   * 前進的撞牆交給物理碰撞處理；敵人仍走 applyCornerSlide，不受此影響。
+   *
+   * @param {string} inputDirection - 玩家輸入方向
+   */
+  applyPlayerGridLock(inputDirection) {
+    const player = this.player;
+    const currentDir = player.direction;
+
+    // 目前行進軸座標距最近車道中心的偏移（轉角緩衝判定用）
+    const movingVertically = GridMovement.axisOf(currentDir) === 'vertical';
+    const travelOffset = movingVertically
+      ? player.y - GridMovement.snapYToGrid(player.y)
+      : player.x - GridMovement.snapXToGrid(player.x);
+
+    // 是否正沿目前方向前進（怠速或撞牆 → 速度趨近 0 → 允許立即轉向，避免卡死）
+    const velocity = player.body.velocity;
+    const advancing = movingVertically
+      ? Math.abs(velocity.y) > 1
+      : Math.abs(velocity.x) > 1;
+
+    const moveDirection = GridMovement.resolveGridDirection(
+      currentDir,
+      inputDirection,
+      travelOffset,
+      advancing,
+      TANK_CONFIG.GRID_TURN_TOLERANCE
+    );
+
+    player.move(moveDirection);
+
+    // 垂直軸鎖定車道中心
+    const lock = GridMovement.lockToLane(player, moveDirection, TANK_CONFIG.GRID_LANE_GLIDE);
+    if (lock) {
+      player[lock.axis] += lock.amount;
     }
   }
 

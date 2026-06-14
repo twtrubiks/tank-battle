@@ -143,6 +143,66 @@ export default class GridMovement {
   }
 
   /**
+   * 判斷方向屬於哪個軸
+   * @param {string} direction - 'up' | 'down' | 'left' | 'right'
+   * @returns {'vertical'|'horizontal'}
+   */
+  static axisOf(direction) {
+    return (direction === 'up' || direction === 'down') ? 'vertical' : 'horizontal';
+  }
+
+  /**
+   * Grid-lock 轉向決策（含轉角緩衝 turn buffering）
+   *
+   * - 無輸入：回傳 null
+   * - 同軸（直行或反向）：立即套用輸入方向
+   * - 垂直轉向：只有當「目前行進軸」已對齊格子中心附近（容差內）才轉，
+   *   否則維持目前方向繼續前進到路口再轉，換取乾淨的 90° 轉角；
+   *   無法前進時（怠速 / 撞牆，advancing=false）直接轉，避免卡死
+   *
+   * @param {string} currentDir - 目前方向（可能為 undefined）
+   * @param {string|null} inputDir - 玩家輸入方向
+   * @param {number} travelOffset - 目前行進軸座標距最近車道中心的偏移
+   * @param {boolean} advancing - 是否正沿目前方向前進
+   * @param {number} tolerance - 轉向對齊容差（像素）
+   * @returns {string|null} 這一幀實際要移動的方向
+   */
+  static resolveGridDirection(currentDir, inputDir, travelOffset, advancing, tolerance = 8) {
+    if (!inputDir) return null;
+    if (!currentDir) return inputDir;
+    if (this.axisOf(inputDir) === this.axisOf(currentDir)) return inputDir;
+
+    // 垂直轉向：對齊或無法前進時才轉，否則先走到路口（緩衝）
+    if (!advancing || Math.abs(travelOffset) <= tolerance) return inputDir;
+    return currentDir;
+  }
+
+  /**
+   * 垂直軸鎖定：把「移動方向的垂直軸」座標往車道中心收斂（每幀上限 glideRate）。
+   * 直行時偏移為 0 → amount 為 0（不動，不會有側拉感）；
+   * 轉彎後的殘留偏移會在數幀內收斂並精準落在車道中心，之後維持鎖定。
+   *
+   * @param {Object} tank - 坦克對象
+   * @param {string} direction - 移動方向
+   * @param {number} glideRate - 每幀收斂像素上限
+   * @returns {{axis:'x'|'y', amount:number}|null} 位置修正量（tank[axis] += amount）
+   */
+  static lockToLane(tank, direction, glideRate = 3) {
+    if (!direction) return null;
+
+    const vertical = this.axisOf(direction) === 'vertical';
+    const offset = vertical
+      ? tank.x - this.snapXToGrid(tank.x)
+      : tank.y - this.snapYToGrid(tank.y);
+
+    // 朝車道中心收斂，每幀不超過 glideRate；偏移為 0 時回傳 +0（避免 -0）
+    const magnitude = Math.min(glideRate, Math.abs(offset));
+    const amount = offset > 0 ? -magnitude : magnitude;
+
+    return { axis: vertical ? 'x' : 'y', amount };
+  }
+
+  /**
    * 檢查位置是否可行走
    * @param {number} x - X 像素座標
    * @param {number} y - Y 像素座標
